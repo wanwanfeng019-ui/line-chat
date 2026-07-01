@@ -4,5 +4,5 @@
   "description": "LINE風 Webグループチャット - LINEの代わりに使えるリンク型チャット",
   "main": "server.js",
   "scripts": { "start": "node server.js" },
-  "dependencies": { "express": "^4.21.0", "ws": "^8.18.0" }
+  "dependencies": { "express": "^4.21.0", "ws": "^8.18.0", "pg": "^8.13.0" }
 }
