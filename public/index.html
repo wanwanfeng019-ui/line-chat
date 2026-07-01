@@ -147,6 +147,19 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); height:
   display:flex; align-items:center; justify-content:center; transition:transform .1s;
 }
 .input-bar button:active { transform:scale(.9) }
+.input-bar .icon-btn { background:transparent; font-size:1.3em; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center }
+
+/* Emoji Picker */
+.emoji-picker { position:absolute; bottom:60px; left:0; right:0; background:var(--bubble-you); border-top:1px solid var(--border); padding:8px; z-index:20; max-height:260px; overflow-y:auto }
+.emoji-search { margin-bottom:6px }
+.emoji-search input { width:100%; padding:6px 10px; border-radius:8px; border:none; background:var(--chat-bg); color:var(--text); font-size:0.82em; outline:none; font-family:var(--font) }
+.emoji-grid { display:flex; flex-wrap:wrap; gap:2px }
+.emoji-item { font-size:1.4em; padding:6px; cursor:pointer; border-radius:6px; transition:background .1s }
+.emoji-item:hover { background:rgba(255,255,255,0.1) }
+
+/* Image in chat */
+.msg-image { max-width:240px; max-height:240px; border-radius:8px; cursor:pointer; display:block }
+.msg-image:hover { opacity:.9 }
 
 /* Empty state */
 .empty-state {
@@ -236,8 +249,17 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); height:
   <div class="messages" id="messages" style="display:none"></div>
 
   <div class="input-bar" id="inputBar" style="display:none">
-    <input id="msgInput" placeholder="メッセージを入力…" maxlength="2000" disabled>
+    <button class="icon-btn" onclick="toggleEmoji()">😊</button>
+    <button class="icon-btn" onclick="document.getElementById('imgInput').click()">🖼</button>
+    <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="sendImage(this)">
+    <input id="msgInput" placeholder="メッセージ…" maxlength="2000" disabled>
     <button onclick="send()">➤</button>
+  </div>
+
+  <!-- Emoji picker -->
+  <div class="emoji-picker" id="emojiPicker" style="display:none">
+    <div class="emoji-search"><input id="emojiSearch" placeholder="絵文字を検索..." oninput="filterEmoji()"></div>
+    <div class="emoji-grid" id="emojiGrid"></div>
   </div>
 </div>
 
@@ -469,7 +491,19 @@ function appendMsg(msg, scroll) {
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
-  bubble.textContent = msg.deleted ? '削除されました' : msg.text;
+  if (msg.deleted) {
+    bubble.textContent = '削除されました';
+  } else if (msg.text && msg.text.startsWith('[IMAGE]')) {
+    const img = document.createElement('img');
+    img.className = 'msg-image';
+    img.src = msg.text.slice(7);
+    img.onclick = () => window.open(img.src);
+    bubble.appendChild(img);
+  } else {
+    // Render emojis bigger
+    bubble.innerHTML = (msg.text || '').replace(/[\u{1F600}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{FE0F}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}\u{3297}\u{3299}\u{303D}\u{3030}\u{24C2}\u{1F201}\u{1F202}\u{1F21A}\u{1F22F}\u{1F232}-\u{1F23A}\u{1F250}\u{1F251}\u{2100}-\u{27FF}\u{FE00}-\u{FE0F}]+/gu,
+      m => '<span style="font-size:1.4em;vertical-align:middle">' + m + '</span>');
+  }
 
   // Long press
   let timer;
@@ -551,6 +585,43 @@ function showCtx(msg) {
 window.delMsg = function(id) { if (ws) ws.send(JSON.stringify({type:'delete',msgId:id})); document.getElementById('ctxMenu').classList.remove('show'); };
 window.makeAdmin = function(u) { if (ws) ws.send(JSON.stringify({type:'setAdmin',newAdmin:u})); document.getElementById('ctxMenu').classList.remove('show'); };
 window.removeAdmin = function(u) { if (ws) ws.send(JSON.stringify({type:'removeAdmin',target:u})); document.getElementById('ctxMenu').classList.remove('show'); };
+
+// ═══ Emoji Picker ═══
+const EMOJIS = ['😀😃😄😁😅😂🤣😊😇🙂😉😌😍🥰😘😗😙😚😋😛😝😜🤪🤨🧐🤓😎🤩🥳😏😒😞😔😟😕🙁😣😖😫😩🥺😢😭😤😠😡🤬🤯😳🥵🥶😱😨😰😥😓🤗🤔🤭🤫🤥😶😐😑😬🙄😯😦😧😮😲🥱😴🤤😪😵🤐🥴🤢🤮🤧😷🤒🤕🤑🤠😈👿👹👺🤡💩👻💀☠️👽👾🤖🎃😺😸😹😻😼😽🙀😿😾','❤️🧡💛💚💙💜🖤🤍🤎💔❣️💕💞💓💗💖💘💝💟☮️✝️☪️🕉☸️✡️🔯🕎☯️☦️🛐⛎♈♉♊♋♌♍♎♏♐♑♒♓🆔⚛️🉑☢️☣️📴📳🈶🈚🈸🈺🈷️✴️🆚💮🉐㊙️㊗️🈴🈵🈹🈲🅰🅱🆎🆑🅾🆘❌⭕🛑⛔📛🚫💯💢♨️🚷🚯🚳🚱🔞📵🚭❗❕❓❔‼️⁉️🔅🔆〽️⚠️🚸🔱⚜️🔰♻️✅🈯💹❇️✳️❎🌐💠Ⓜ️🌀💤🏧🚾♿🅿️🈳🈂🛂🛃🛄🛅🚹🚺🚼⚧🚻🚮🎦📶🈁🔣ℹ️🔤🔡🔠🆖🆗🆙🆒🆕🆓0️⃣1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣🔟🔢#️⃣*️⃣⏏️▶️⏸⏯⏹⏺⏭⏮⏩⏪⏫⏬◀️🔼🔽➡️⬅️⬆️⬇️↗️↘️↙️↖️↕️↔️↪️↩️⤴️⤵️🔀🔁🔂🔄🔃🎵🎶➕➖➗✖️♾💲💱™©®〰➰➿🔚🔙🔛🔝🔜✔️☑️🔘🔴🟠🟡🟢🔵🟣⚫⚪🟤🔺🔻🔸🔹🔶🔷🔳🔲▪️▫️◾◽◼️◻️🟥🟧🟨🟩🟦🟪⬛⬜🟫🔈🔇🔉🔊🔔🔕📣📢💬💭🗯♠️♣️♥️♦️🃏🎴🀄🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛🕜🕝🕞🕟🕠🕡🕢🕣🕤🕥🕦🕧'].join('');
+
+function initEmoji() {
+  const grid = document.getElementById('emojiGrid');
+  grid.innerHTML = [...EMOJIS].map(e => `<span class="emoji-item" onclick="insertEmoji('${e}')">${e}</span>`).join('');
+}
+function toggleEmoji() {
+  const p = document.getElementById('emojiPicker');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+function filterEmoji() {
+  const q = document.getElementById('emojiSearch').value;
+  const grid = document.getElementById('emojiGrid');
+  grid.innerHTML = [...EMOJIS].filter(e => !q || e.includes(q)).map(e => `<span class="emoji-item" onclick="insertEmoji('${e}')">${e}</span>`).join('');
+}
+function insertEmoji(e) {
+  const inp = document.getElementById('msgInput');
+  inp.value += e; inp.focus();
+}
+
+// ═══ Image Send ═══
+function sendImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { toast('⚠️ 画像は10MB以下にしてください'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'chat', text: '[IMAGE]' + reader.result }));
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+initEmoji();
 
 // Auto reconnect
 setInterval(() => { if (currentRoom && (!ws || ws.readyState===3)) connect(currentRoom); }, 5000);
