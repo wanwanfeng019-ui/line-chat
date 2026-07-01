@@ -231,7 +231,7 @@ async function loadRooms() {
       <div class="room-card" onclick="openRoom('${r.roomId}')">
         <div class="room-header">
           <strong>💬 ${r.roomId} ${r.password ? '🔒' : ''}</strong>
-          <span style="font-size:0.8em;color:#888">👑 ${r.admin || '---'}</span>
+          <span style="font-size:0.8em;color:#888">👑 ${(r.admins||[]).join(', ') || '---'}</span>
         </div>
         <div class="room-stats">
           <span>👥 ${r.onlineCount}人在線</span>
@@ -275,7 +275,7 @@ async function loadRoomDetail() {
     if (!res.ok) { toast('⚠️ 読込エラー'); return; }
     const data = await res.json();
 
-    document.getElementById('dAdmin').textContent = data.admin || '---';
+    document.getElementById('dAdmin').textContent = (data.admins || []).join(', ') || '---';
     document.getElementById('dCount').textContent = data.onlineCount;
     document.getElementById('dMsgCount').textContent = data.messageCount;
     document.getElementById('roomPwdInput').value = data.password || '';
@@ -288,7 +288,9 @@ async function loadRoomDetail() {
           <span>${u.userName}</span>
           ${u.isAdmin ? '<span class="badge badge-admin">👑 管理者</span>' : '<span class="badge badge-user">ユーザー</span>'}
           <span class="ip">${u.ip}</span>
-          ${!u.isAdmin ? `<button onclick="makeAdmin('${u.userName}')">👑 管理者にする</button>` : ''}
+          ${u.isAdmin
+            ? `<button class="danger" onclick="removeAdmin('${u.userName}')">⛔ 解除</button>`
+            : `<button onclick="makeAdmin('${u.userName}')">👑 管理者にする</button>`}
         </div>
       `).join('');
 
@@ -329,6 +331,19 @@ async function makeAdmin(userName) {
       body: JSON.stringify({ user: currentUser, pwd: currentPwd, newAdmin: userName }),
     });
     if (res.ok) { toast(`✅ ${userName} を管理者に設定しました`); loadRoomDetail(); }
+    else toast('⚠️ 失敗しました');
+  } catch (e) { toast('⚠️ 通信エラー'); }
+}
+
+async function removeAdmin(userName) {
+  if (userName === 'jinzhengen') { toast('⚠️ jinzhengen は解除できません'); return; }
+  try {
+    const res = await fetch(`/api/admin/${encodeURIComponent(detailRoom)}/removeAdmin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: currentUser, pwd: currentPwd, target: userName }),
+    });
+    if (res.ok) { toast(`✅ ${userName} の管理者を解除しました`); loadRoomDetail(); }
     else toast('⚠️ 失敗しました');
   } catch (e) { toast('⚠️ 通信エラー'); }
 }

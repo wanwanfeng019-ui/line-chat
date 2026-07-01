@@ -267,7 +267,9 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); height:
 // ═══ State ═══
 const USER_KEY = 'line_name';
 let userName = localStorage.getItem(USER_KEY) || '';
-let ws = null, currentRoom = '', isAdmin = false, roomAdmin = '';
+let ws = null, currentRoom = '', isAdmin = false, roomAdmins = [];
+const ROOM_ICONS = ['💬','🏠','💼','🎮','🎵','📚','🍔','✈️','⚽','🌟'];
+const ROOM_COLORS = ['#06C755','#3498db','#e74c3c','#9b59b6','#f39c12','#1abc9c','#e91e63','#00bcd4','#ff5722','#607d8b'];
 let pwdCache = {};
 let lastMsgMap = {}; // roomId → { text, time }
 
@@ -306,7 +308,7 @@ function initSidebar() {
     item.id = 'room-item-' + i;
     item.onclick = () => selectRoom(String(i));
     item.innerHTML = `
-      <div class="r-avatar" style="background:${avatarColor(String(i))}">${i}</div>
+      <div class="r-avatar" style="background:${ROOM_COLORS[i-1]}">${ROOM_ICONS[i-1]}</div>
       <div class="r-info">
         <div class="r-name">部屋 ${i} <span class="r-lock" id="lock-${i}"></span></div>
         <div class="r-last" id="last-${i}">---</div>
@@ -391,8 +393,8 @@ function connect(id) {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'history') {
-      isAdmin = msg.isAdmin; roomAdmin = msg.admin;
-      document.getElementById('chatMembers').textContent = msg.online + '人がオンライン';
+      isAdmin = msg.isAdmin; roomAdmins = msg.admins || [];
+      document.getElementById('chatMembers').textContent = msg.online + '人オンライン';
       document.getElementById('lock-' + id).textContent = msg.hasPassword ? '🔒' : '';
       document.getElementById('messages').innerHTML = '';
       // Group by date
@@ -416,8 +418,8 @@ function connect(id) {
       if (el) { el.classList.add('msg-deleted'); const b = el.querySelector('.msg-bubble'); if (b) b.textContent = '削除されました'; }
     }
     if (msg.type === 'system') {
-      document.getElementById('chatMembers').textContent = (msg.online||'?') + '人がオンライン';
-      if (msg.admin !== undefined) { roomAdmin = msg.admin; isAdmin = (userName === msg.admin); }
+      document.getElementById('chatMembers').textContent = (msg.online||'?') + '人オンライン';
+      if (msg.admins !== undefined) { roomAdmins = msg.admins; isAdmin = roomAdmins.includes(userName); }
       addSystem(msg.text);
     }
   };
@@ -461,7 +463,7 @@ function appendMsg(msg, scroll) {
   if (!me) {
     const sender = document.createElement('div');
     sender.className = 'msg-sender';
-    sender.textContent = msg.user + (msg.user === roomAdmin ? ' 👑' : '');
+    sender.textContent = msg.user + (roomAdmins.includes(msg.user) ? ' 👑' : '');
     body.appendChild(sender);
   }
 
@@ -532,7 +534,13 @@ function showCtx(msg) {
   const can = (msg.user === userName) || isAdmin;
   if (!can) return;
   let html = '<button class="danger" onclick="delMsg(\''+msg.id+'\')">🗑 削除</button>';
-  if (isAdmin && msg.user !== userName) html += '<button onclick="makeAdmin(\''+msg.user+'\')">👑 管理者にする</button>';
+  if (isAdmin && msg.user !== userName) {
+    if (!roomAdmins.includes(msg.user)) {
+      html += '<button onclick="makeAdmin(\''+msg.user+'\')">👑 管理者にする</button>';
+    } else {
+      html += '<button onclick="removeAdmin(\''+msg.user+'\')">⛔ 管理者を解除</button>';
+    }
+  }
   menu.innerHTML = html;
   menu.classList.add('show');
   menu.style.right = '20px';
@@ -542,6 +550,7 @@ function showCtx(msg) {
 
 window.delMsg = function(id) { if (ws) ws.send(JSON.stringify({type:'delete',msgId:id})); document.getElementById('ctxMenu').classList.remove('show'); };
 window.makeAdmin = function(u) { if (ws) ws.send(JSON.stringify({type:'setAdmin',newAdmin:u})); document.getElementById('ctxMenu').classList.remove('show'); };
+window.removeAdmin = function(u) { if (ws) ws.send(JSON.stringify({type:'removeAdmin',target:u})); document.getElementById('ctxMenu').classList.remove('show'); };
 
 // Auto reconnect
 setInterval(() => { if (currentRoom && (!ws || ws.readyState===3)) connect(currentRoom); }, 5000);
