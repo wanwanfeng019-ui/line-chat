@@ -5,54 +5,63 @@ const crypto = require('crypto');
 
 const app = express();
 app.use(express.static('public'));
+app.use(express.json());
 const server = http.createServer(app);
 
 // ── In-memory store ──
-const rooms = new Map(); // roomId → { admin, messages[], clients: Map<ws, userName> }
+const rooms = new Map();
 
 function getRoom(id) {
-  if (!rooms.has(id)) rooms.set(id, { admin: null, messages: [], clients: new Map() });
+  if (!rooms.has(id)) rooms.set(id, {
+    admin: null,
+    messages: [],
+    clients: new Map(),       // ws → { userName, ip }
+    joinLog: [],              // [{ userName, ip, action, time }]
+  });
   return rooms.get(id);
 }
 
 // ── WebSocket ──
 const wss = new WebSocketServer({ server });
 
+function getClientIP(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0].trim();
+  return req.socket.remoteAddress || 'unknown';
+}
+
 wss.on('connection', (ws, req) => {
   const params = new URLSearchParams(req.url.split('?')[1] || '');
   const roomId = params.get('room') || 'default';
   const userName = params.get('user') || '名無し';
+  const ip = getClientIP(req);
 
   const room = getRoom(roomId);
-  room.clients.set(ws, userName);
+  room.clients.set(ws, { userName, ip });
 
-  // First person in room becomes admin
   if (!room.admin) room.admin = userName;
 
   ws._roomId = roomId;
   ws._userName = userName;
+  ws._ip = ip;
   const isAdmin = (room.admin === userName);
 
-  // Send join notification
+  // Log join
+  room.joinLog.push({ userName, ip, action: 'join', time: Date.now() });
+  if (room.joinLog.length > 500) room.joinLog = room.joinLog.slice(-500);
+
   broadcast(room, {
     type: 'system',
     text: `${userName} が参加しました` + (isAdmin ? ' 👑' : ''),
-    user: 'SYSTEM',
-    time: Date.now(),
-    online: room.clients.size,
+    user: 'SYSTEM', time: Date.now(), online: room.clients.size,
   });
 
-  // Send history to the new client only
   ws.send(JSON.stringify({
     type: 'history',
     messages: room.messages.slice(-200),
-    online: room.clients.size,
-    roomId,
-    admin: room.admin,
-    isAdmin,
+    online: room.clients.size, roomId,
+    admin: room.admin, isAdmin,
   }));
-
-  console.log(`👤 ${userName} ${isAdmin?'👑':''} joined room:${roomId} (${room.clients.size} online)`);
 
   ws.on('message', (data) => {
     try {
@@ -74,48 +83,40 @@ wss.on('connection', (ws, req) => {
       if (msg.type === 'delete') {
         const target = room.messages.find(m => m.id === msg.msgId);
         if (!target) return;
-        // Check permission: own message OR admin
         if (target.user !== ws._userName && room.admin !== ws._userName) return;
         target.deleted = true;
         target.deleteBy = ws._userName;
         target.deleteTime = Date.now();
-        broadcast(room, {
-          type: 'msgDeleted',
-          msgId: msg.msgId,
-          deleteBy: ws._userName,
-        });
+        broadcast(room, { type: 'msgDeleted', msgId: msg.msgId, deleteBy: ws._userName });
       }
 
       if (msg.type === 'setAdmin') {
         if (room.admin !== ws._userName) return;
         room.admin = msg.newAdmin;
+        room.joinLog.push({ userName: ws._userName, ip: ws._ip, action: 'setAdmin:' + msg.newAdmin, time: Date.now() });
         broadcast(room, {
           type: 'system',
           text: `👑 管理者が ${msg.newAdmin} に変更されました`,
-          user: 'SYSTEM',
-          time: Date.now(),
-          online: room.clients.size,
-          admin: room.admin,
+          user: 'SYSTEM', time: Date.now(), online: room.clients.size, admin: room.admin,
         });
       }
-    } catch (e) { /* ignore bad messages */ }
+    } catch (e) {}
   });
 
   ws.on('close', () => {
+    const info = room.clients.get(ws);
     room.clients.delete(ws);
+    room.joinLog.push({ userName: ws._userName, ip: ws._ip, action: 'leave', time: Date.now() });
+    if (room.joinLog.length > 500) room.joinLog = room.joinLog.slice(-500);
+
     broadcast(room, {
       type: 'system',
       text: `${ws._userName} が退出しました`,
-      user: 'SYSTEM',
-      time: Date.now(),
-      online: room.clients.size,
+      user: 'SYSTEM', time: Date.now(), online: room.clients.size,
     });
-    console.log(`👋 ${ws._userName} left room:${roomId}`);
-    // Clean empty rooms after 10 minutes
+
     if (room.clients.size === 0) {
-      setTimeout(() => {
-        if (room.clients.size === 0) rooms.delete(roomId);
-      }, 600000);
+      setTimeout(() => { if (room.clients.size === 0) rooms.delete(roomId); }, 600000);
     }
   });
 });
@@ -127,22 +128,78 @@ function broadcast(room, msg) {
   });
 }
 
+// ── Admin API ──
+const ADMIN_PASSWORD = 'admin888';
+
+app.get('/api/admin/:roomId', (req, res) => {
+  const { roomId } = req.params;
+  const pwd = req.query.pwd || '';
+  if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'パスワードが違います' });
+
+  const room = rooms.get(roomId);
+  if (!room) return res.json({ roomId, exists: false, online: [], joinLog: [] });
+
+  const online = Array.from(room.clients.entries()).map(([ws, info]) => ({
+    userName: info.userName,
+    ip: info.ip,
+    isAdmin: info.userName === room.admin,
+  }));
+
+  res.json({
+    roomId,
+    admin: room.admin,
+    online,
+    onlineCount: room.clients.size,
+    messageCount: room.messages.length,
+    joinLog: room.joinLog.slice(-100).reverse(),
+  });
+});
+
+app.post('/api/admin/:roomId/setAdmin', (req, res) => {
+  const { roomId } = req.params;
+  const { pwd, newAdmin } = req.body;
+  if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'パスワードが違います' });
+
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '部屋が存在しません' });
+
+  room.admin = newAdmin;
+  room.joinLog.push({ userName: 'BACKEND', ip: '0.0.0.0', action: 'setAdmin:' + newAdmin, time: Date.now() });
+  broadcast(room, {
+    type: 'system',
+    text: `👑 管理者が ${newAdmin} に変更されました（バックエンド）`,
+    user: 'SYSTEM', time: Date.now(), online: room.clients.size, admin: room.admin,
+  });
+
+  res.json({ ok: true, admin: newAdmin });
+});
+
+app.post('/api/admin/:roomId/deleteMsg', (req, res) => {
+  const { roomId } = req.params;
+  const { pwd, msgId } = req.body;
+  if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'パスワードが違います' });
+
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '部屋が存在しません' });
+
+  const target = room.messages.find(m => m.id === msgId);
+  if (!target) return res.status(404).json({ error: 'メッセージが見つかりません' });
+
+  target.deleted = true;
+  target.deleteBy = 'BACKEND';
+  target.deleteTime = Date.now();
+  broadcast(room, { type: 'msgDeleted', msgId, deleteBy: 'BACKEND' });
+
+  res.json({ ok: true });
+});
+
 // ── Routes ──
-app.get('/:roomId', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
-});
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
-});
+app.get('/:roomId', (req, res) => res.sendFile(__dirname + '/public/index.html'));
+app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
 
 // ── Start ──
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`
-╔══════════════════════════════════╗
-║  💬 LINE風 Webチャット 起動中   ║
-║  http://localhost:${PORT}          ║
-║  部屋: /?room=部屋名              ║
-╚══════════════════════════════════╝
-`);
+  console.log(`💬 LINE風チャット http://localhost:${PORT}`);
+  console.log(`🔧 管理画面 http://localhost:${PORT}/admin?room=部屋名&pwd=admin888`);
 });

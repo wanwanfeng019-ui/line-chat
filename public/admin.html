@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面 - LINE風チャット</title>
+<style>
+:root {
+  --line-green: #06C755;
+  --bg: #f5f6f8; --card: #fff; --border: #e0e0e0;
+  --text: #333; --muted: #888; --danger: #e74c3c;
+  --font: 'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); padding: 20px; }
+.container { max-width: 900px; margin: 0 auto; }
+
+h1 { font-size: 1.4em; margin-bottom: 4px; }
+h1 span { color: var(--line-green); }
+.sub { color: var(--muted); font-size: 0.82em; margin-bottom: 16px; }
+
+.login-card {
+  background: var(--card); border-radius: 16px; padding: 30px; text-align: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06); max-width: 400px; margin: 40px auto;
+}
+.login-card input, .login-card button {
+  width: 100%; padding: 12px 16px; margin: 6px 0; border-radius: 10px;
+  border: 1px solid var(--border); font-size: 0.95em; outline: none;
+}
+.login-card button {
+  background: var(--line-green); color: #fff; font-weight: 700; border: none; cursor: pointer;
+}
+.login-card button:active { opacity: .85; }
+
+.dashboard { display: none; }
+.top-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+}
+.top-bar .room-info {
+  background: var(--card); padding: 8px 16px; border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.top-bar button {
+  padding: 8px 16px; border-radius: 10px; border: 1px solid var(--border);
+  background: #fff; cursor: pointer; font-size: 0.85em;
+}
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--card); border-radius: 14px; padding: 18px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.05);
+}
+.card h3 { font-size: 0.92em; margin-bottom: 12px; color: #555; letter-spacing: 1px; }
+
+.stat-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85em; }
+.stat-row .val { font-weight: 700; }
+
+.user-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5; font-size: 0.83em;
+}
+.user-row .ip { color: var(--muted); font-size: 0.85em; font-family: monospace; }
+.user-row .badge {
+  padding: 2px 8px; border-radius: 6px; font-size: 0.75em; font-weight: 700;
+}
+.badge-admin { background: #fff3cd; color: #856404; }
+.badge-user { background: #e8f5e9; color: #2e7d32; }
+.user-row button {
+  margin-left: auto; padding: 4px 10px; border-radius: 6px; border: 1px solid #ccc;
+  background: #fff; cursor: pointer; font-size: 0.75em;
+}
+.user-row button.danger { color: var(--danger); border-color: var(--danger); }
+
+.log-row {
+  padding: 5px 0; border-bottom: 1px solid #fafafa; font-size: 0.78em;
+  display: flex; gap: 10px;
+}
+.log-row .ltime { color: var(--muted); min-width: 48px; }
+.log-row .lact { min-width: 50px; font-weight: 600; }
+.log-row .luser { font-weight: 600; min-width: 70px; }
+.log-row .lip { color: var(--muted); font-family: monospace; font-size: 0.85em; }
+.log-row .lact.join { color: #27ae60; }
+.log-row .lact.leave { color: #e74c3c; }
+.log-row .lact.setAdmin { color: #f39c12; }
+
+.msg-row {
+  padding: 6px 0; border-bottom: 1px solid #fafafa; font-size: 0.78em;
+  display: flex; align-items: center; gap: 8px;
+}
+.msg-row .muser { font-weight: 600; min-width: 60px; }
+.msg-row .mtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-row .mtime { color: var(--muted); }
+.msg-row button {
+  padding: 2px 8px; border-radius: 4px; border: 1px solid #e74c3c;
+  color: #e74c3c; background: #fff; cursor: pointer; font-size: 0.7em;
+}
+
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  background: #333; color: #fff; padding: 10px 24px; border-radius: 20px;
+  z-index: 999; opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.toast.show { opacity: 1; }
+
+.log-scroll { max-height: 320px; overflow-y: auto; }
+.msg-scroll { max-height: 260px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div id="loginScreen" class="login-card">
+    <h1>🔧 管理画面</h1>
+    <p class="sub">LINE風チャット バックエンド</p>
+    <input id="roomInput" placeholder="部屋名（例: 家族）">
+    <input id="pwdInput" type="password" placeholder="パスワード">
+    <button onclick="doLogin()">ログイン</button>
+  </div>
+
+  <div id="dashboard" class="dashboard">
+    <h1>🔧 管理画面 <span>#<span id="dRoom"></span></span></h1>
+    <p class="sub">リアルタイム監視 · <span id="dTime"></span></p>
+
+    <div class="top-bar">
+      <div class="room-info">
+        👑 管理者: <strong id="dAdmin">---</strong> ·
+        👥 オンライン: <strong id="dCount">0</strong> ·
+        💬 メッセージ: <strong id="dMsgCount">0</strong>
+      </div>
+      <div>
+        <button onclick="loadData()">🔄 更新</button>
+        <button onclick="doLogout()">↩ ログアウト</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Online users -->
+      <div class="card">
+        <h3>👥 オンラインユーザー</h3>
+        <div id="onlineList">読み込み中…</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="card">
+        <h3>📊 統計</h3>
+        <div class="stat-row"><span>総メッセージ数</span><span class="val" id="sMsg">-</span></div>
+        <div class="stat-row"><span>オンライン数</span><span class="val" id="sOnline">-</span></div>
+        <div class="stat-row"><span>本日の入退室</span><span class="val" id="sLogs">-</span></div>
+      </div>
+
+      <!-- Message management -->
+      <div class="card">
+        <h3>💬 最近のメッセージ</h3>
+        <div class="msg-scroll" id="msgList">---</div>
+      </div>
+
+      <!-- Join/Leave log -->
+      <div class="card">
+        <h3>📋 入退室ログ</h3>
+        <div class="log-scroll" id="logList">---</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let currentRoom = '', currentPwd = '';
+
+// Restore session
+const saved = localStorage.getItem('admin_session');
+if (saved) {
+  const s = JSON.parse(saved);
+  currentRoom = s.room; currentPwd = s.pwd;
+  showDashboard();
+  loadData();
+}
+
+function doLogin() {
+  currentRoom = document.getElementById('roomInput').value.trim();
+  currentPwd = document.getElementById('pwdInput').value.trim();
+  if (!currentRoom) return alert('部屋名を入力してください');
+  localStorage.setItem('admin_session', JSON.stringify({ room: currentRoom, pwd: currentPwd }));
+  showDashboard();
+  loadData();
+}
+
+function doLogout() {
+  localStorage.removeItem('admin_session');
+  location.reload();
+}
+
+function showDashboard() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('dRoom').textContent = currentRoom;
+}
+
+async function loadData() {
+  try {
+    const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}?pwd=${encodeURIComponent(currentPwd)}`);
+    if (!res.ok) { toast('⚠️ パスワードが違うか、部屋が存在しません'); return; }
+    const data = await res.json();
+
+    document.getElementById('dAdmin').textContent = data.admin || '---';
+    document.getElementById('dCount').textContent = data.onlineCount;
+    document.getElementById('dMsgCount').textContent = data.messageCount;
+    document.getElementById('sMsg').textContent = data.messageCount;
+    document.getElementById('sOnline').textContent = data.onlineCount;
+    document.getElementById('sLogs').textContent = data.joinLog.length + '件';
+    document.getElementById('dTime').textContent = new Date().toLocaleTimeString('ja-JP');
+
+    // Online users
+    document.getElementById('onlineList').innerHTML = data.online.length === 0
+      ? '<div style="color:#aaa;padding:10px">誰もいません</div>'
+      : data.online.map(u => `
+        <div class="user-row">
+          <span>${u.userName}</span>
+          ${u.isAdmin ? '<span class="badge badge-admin">👑 管理者</span>' : '<span class="badge badge-user">ユーザー</span>'}
+          <span class="ip">${u.ip}</span>
+          ${!u.isAdmin ? `<button onclick="makeAdmin('${u.userName}')">👑 管理者にする</button>` : ''}
+        </div>
+      `).join('');
+
+    // Join log
+    document.getElementById('logList').innerHTML = data.joinLog.length === 0
+      ? '<div style="color:#aaa">ログなし</div>'
+      : data.joinLog.map(l => {
+        const actLabel = l.action.includes('setAdmin') ? '👑管理者変更' : l.action === 'join' ? '入室' : '退室';
+        const actClass = l.action.includes('setAdmin') ? 'setAdmin' : l.action;
+        return `<div class="log-row">
+          <span class="ltime">${new Date(l.time).toLocaleTimeString('ja-JP')}</span>
+          <span class="lact ${actClass}">${actLabel}</span>
+          <span class="luser">${l.userName}</span>
+          <span class="lip">${l.ip}</span>
+        </div>`;
+      }).join('');
+  } catch (e) {
+    toast('⚠️ 通信エラー');
+  }
+}
+
+async function makeAdmin(userName) {
+  try {
+    const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}/setAdmin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pwd: currentPwd, newAdmin: userName }),
+    });
+    if (res.ok) { toast(`✅ ${userName} を管理者に設定しました`); loadData(); }
+    else toast('⚠️ 失敗しました');
+  } catch (e) { toast('⚠️ 通信エラー'); }
+}
+
+// Auto refresh every 10 seconds
+setInterval(() => {
+  if (document.getElementById('dashboard').style.display !== 'none') loadData();
+}, 10000);
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000);
+}
+</script>
+</body>
+</html>
