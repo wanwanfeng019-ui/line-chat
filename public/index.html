@@ -404,11 +404,11 @@ function filterEmoji(){const q=document.getElementById('emojiSearch').value;docu
 function insertEmoji(e){const inp=document.getElementById('msgInput');inp.value+=e;inp.focus()}
 
 // ═══ Calendar / Check-in ═══
-let calYear, calMonth, checkinData = {}, checkinTotal = 0, checkinElapsed = 0, checkinNeeded = 600, checkinDone = false;
+let calYear, calMonthIdx, checkinData = {}, checkinTotal = 0, checkinElapsed = 0, checkinNeeded = 600, checkinDone = false;
 
 function toggleCalendar() {
   if (!currentRoom) return;
-  const now = new Date(); calYear = now.getFullYear(); calMonth = now.getMonth();
+  const now = new Date(); calYear = now.getFullYear(); calMonthIdx = now.getMonth();
   loadCheckinData();
   document.getElementById('calOverlay').classList.remove('hidden');
 }
@@ -444,18 +444,18 @@ function calcStreak() {
 }
 
 function renderCalendar() {
-  document.getElementById('calTitle').textContent = calYear + '年 ' + (calMonth + 1) + '月';
+  document.getElementById('calTitle').textContent = calYear + '年 ' + (calMonthIdx + 1) + '月';
   const grid = document.getElementById('calGrid');
   const userDates = checkinData[userName] || [];
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstDay = new Date(calYear, calMonthIdx, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonthIdx + 1, 0).getDate();
 
   let html = '';
   for (let i = 0; i < firstDay; i++) html += '<div class="cal-day dim"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
-    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const ds = `${calYear}-${String(calMonthIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const checked = userDates.includes(ds);
     const isToday = ds === todayStr;
     html += `<div class="cal-day${checked?' checked':''}${isToday?' today':''}">${d}</div>`;
@@ -464,9 +464,9 @@ function renderCalendar() {
 }
 
 function calMonth(delta) {
-  calMonth += delta;
-  if (calMonth < 0) { calMonth = 11; calYear--; }
-  if (calMonth > 11) { calMonth = 0; calYear++; }
+  calMonthIdx += delta;
+  if (calMonthIdx < 0) { calMonthIdx = 11; calYear--; }
+  if (calMonthIdx > 11) { calMonthIdx = 0; calYear++; }
   renderCalendar();
 }
 
