@@ -210,7 +210,16 @@ async function loadRooms() {
     const rooms = await res.json();
 
     if (rooms.length === 0) {
-      document.getElementById('roomCards').innerHTML = '<div class="card" style="text-align:center;color:#aaa;padding:30px">アクティブなルームはありません</div>';
+      document.getElementById('roomCards').innerHTML = `
+        <div class="card" style="text-align:center;padding:30px">
+          <p style="color:#aaa;margin-bottom:16px">まだルームがありません</p>
+          <p style="font-size:0.82em;color:#888;margin-bottom:10px">まずはチャットリンクを開いてルームを作成してください</p>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <input id="newRoomName" placeholder="ルーム名" style="padding:10px;border-radius:10px;border:1px solid #ddd;font-size:0.9em;text-align:center" value="テスト">
+            <button onclick="createRoom()" style="padding:10px 20px;border-radius:10px;border:none;background:#06C755;color:#fff;font-weight:700;cursor:pointer;font-size:0.9em">作成 & リンクコピー</button>
+          </div>
+          <div id="newRoomLink" style="margin-top:12px;font-size:0.85em;color:#06C755;display:none"></div>
+        </div>`;
       return;
     }
 
@@ -228,6 +237,15 @@ async function loadRooms() {
       </div>
     `).join('');
   } catch (e) { toast('⚠️ 通信エラー'); }
+}
+
+function createRoom() {
+  const name = document.getElementById('newRoomName').value.trim() || 'テスト';
+  const link = location.origin + '/?room=' + encodeURIComponent(name);
+  document.getElementById('newRoomLink').style.display = 'block';
+  document.getElementById('newRoomLink').innerHTML = '🔗 <a href="' + link + '" target="_blank" style="color:#06C755">' + link + '</a> (クリックで開く)';
+  navigator.clipboard?.writeText(link);
+  toast('✅ リンクをコピーしました！このリンクを開くとルームが作成されます');
 }
 
 // ── Room detail ──

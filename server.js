@@ -1,12 +1,48 @@
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
+
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 const app = express();
 app.use(express.static('public'));
 app.use(express.json());
 const server = http.createServer(app);
+
+// ── Persistence ──
+function saveData() {
+  try {
+    const obj = {};
+    for (const [id, room] of rooms) {
+      obj[id] = {
+        admin: room.admin,
+        messages: room.messages.slice(-300),
+        joinLog: room.joinLog.slice(-100),
+      };
+    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(obj));
+  } catch (e) { /* ignore */ }
+}
+
+function loadData() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const obj = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    for (const [id, data] of Object.entries(obj)) {
+      rooms.set(id, {
+        admin: data.admin,
+        messages: data.messages || [],
+        clients: new Map(),
+        joinLog: data.joinLog || [],
+      });
+    }
+    console.log(`📂 Loaded ${Object.keys(obj).length} rooms from disk`);
+  } catch (e) { /* ignore */ }
+}
+setInterval(saveData, 30000); // Save every 30 seconds
 
 // ── In-memory store ──
 const rooms = new Map();
@@ -50,6 +86,7 @@ wss.on('connection', (ws, req) => {
   // Log join
   room.joinLog.push({ userName, ip, action: 'join', time: Date.now() });
   if (room.joinLog.length > 500) room.joinLog = room.joinLog.slice(-500);
+  saveData();
 
   broadcast(room, {
     type: 'system',
@@ -79,6 +116,7 @@ wss.on('connection', (ws, req) => {
         room.messages.push(chatMsg);
         if (room.messages.length > 1000) room.messages = room.messages.slice(-1000);
         broadcast(room, chatMsg);
+        saveData();
       }
 
       if (msg.type === 'delete') {
@@ -230,8 +268,9 @@ app.get('/:roomId', (req, res) => res.sendFile(__dirname + '/public/index.html')
 app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
 
 // ── Start ──
+loadData();
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`💬 LINE風チャット http://localhost:${PORT}`);
-  console.log(`🔧 管理画面 http://localhost:${PORT}/admin?room=部屋名&pwd=admin888`);
+  console.log(`🔧 管理画面 http://localhost:${PORT}/admin.html`);
 });
