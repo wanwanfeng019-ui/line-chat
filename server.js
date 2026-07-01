@@ -1,72 +1,52 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
-const { Pool } = require('pg');
 
-const DATABASE_URL = 'postgresql://neondb_owner:npg_gGWrE4tQp1oX@ep-little-flower-ata9rfhv-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-
-let pool = null;
-try {
-  pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
-  console.log('🔌 PostgreSQL connecting...');
-} catch(e) {
-  console.log('⚠️ PostgreSQL init failed:', e.message);
-}
+const DATA_FILE = path.join(__dirname, 'data.json');
 const app = express();
 app.use(express.static('public'));
 app.use(express.json());
 const server = http.createServer(app);
 
+// ── Store ──
+const rooms = new Map();
 const SUPER_ADMIN = 'jinzhengen';
 
-// ═══ Database init ═══
-async function initDB() {
-  if (!pool) { console.log('⚠️ No DB pool, using memory'); return; }
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS room_config (room_id TEXT PRIMARY KEY, admins TEXT[] DEFAULT '{}', password TEXT);
-      CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, room_id TEXT, msg_id TEXT, type TEXT DEFAULT 'chat', username TEXT, text TEXT, time BIGINT, deleted BOOLEAN DEFAULT false, delete_by TEXT, read_by TEXT[] DEFAULT '{}', reply_to TEXT);
-      CREATE INDEX IF NOT EXISTS idx_msg_room ON messages(room_id, time DESC);
-      CREATE TABLE IF NOT EXISTS checkins (room_id TEXT, username TEXT, date TEXT, PRIMARY KEY(room_id, username, date));
-      CREATE TABLE IF NOT EXISTS join_logs (id SERIAL PRIMARY KEY, room_id TEXT, username TEXT, ip TEXT, action TEXT, time BIGINT);
-    `);
-    dbOk = true;
-    console.log('📦 PostgreSQL ready');
-  } catch(e) { console.log('⚠️ DB init failed:', e.message); }
-}
-initDB();
-
-// ═══ Helpers ═══
-async function ensureRoom(id) {
-  await query('INSERT INTO room_config (room_id) VALUES ($1) ON CONFLICT DO NOTHING', [id]);
-}
-
-async function getRoomAdmins(id) {
-  const r = await query('SELECT admins, password FROM room_config WHERE room_id=$1', [id]);
-  const row = r.rows[0] || { admins: [], password: null };
-  return row;
-}
-
-// ═══ Safe query with fallback ═══
-let dbOk = false;
-const memStore = { config:{}, msgs:[], checkins:[], logs:[] };
-
-async function query(text, params) {
-  if (!pool || !dbOk) throw new Error('DB not ready');
-  try { return await pool.query(text, params); }
-  catch(e) { dbOk = false; throw e; }
-}
-
-// ═══ In-memory clients ═══
-const rooms = new Map();
-
-function getClients(id) {
-  if (!rooms.has(id)) rooms.set(id, { clients: new Map(), joinTimes: new Map() });
+function getRoom(id) {
+  if (!rooms.has(id)) rooms.set(id, {
+    admins: [], messages: [], password: null, clients: new Map(), joinLog: [], checkins: {},
+  });
+  // Track join time for each client
+  if (!rooms.get(id)._joinTimes) rooms.get(id)._joinTimes = new Map();
   return rooms.get(id);
 }
 
-// ═══ WebSocket ═══
+// Persistence
+function saveNow() {
+  try {
+    const obj = {};
+    for (const [id, r] of rooms) {
+      obj[id] = { admins: r.admins, password: r.password, messages: r.messages.slice(-300), joinLog: r.joinLog.slice(-100), checkins: r.checkins || {} };
+    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(obj));
+  } catch(e) {}
+}
+function loadNow() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const obj = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    for (const [id, d] of Object.entries(obj)) {
+      rooms.set(id, { admins: d.admins || [], password: d.password || null, messages: d.messages || [], clients: new Map(), joinLog: d.joinLog || [], checkins: d.checkins || {} });
+    }
+    console.log('📂 ' + Object.keys(obj).length + ' rooms loaded');
+  } catch(e) {}
+}
+setInterval(saveNow, 30000);
+
+// ── WebSocket ──
 const wss = new WebSocketServer({ server });
 
 function getIP(req) {
@@ -74,112 +54,89 @@ function getIP(req) {
   return x ? x.split(',')[0].trim() : req.socket.remoteAddress || '?';
 }
 
-wss.on('connection', async (ws, req) => {
+wss.on('connection', (ws, req) => {
   const q = new URLSearchParams(req.url.split('?')[1] || '');
   const roomId = q.get('room') || '1';
-  const userName = q.get('user') || 'guest';
+  const userName = q.get('user') || '名無し';
   const ip = getIP(req);
 
-  let admins = [SUPER_ADMIN];
-  try {
-    await ensureRoom(roomId);
-    let cfg = await getRoomAdmins(roomId);
-    admins = cfg.admins || [];
-    if (!admins.includes(SUPER_ADMIN)) {
-      admins.push(SUPER_ADMIN);
-      await query('UPDATE room_config SET admins=$1 WHERE room_id=$2', [admins, roomId]);
-    }
-  } catch(e) { /* DB down, use default admins */ }
-
-  const room = getClients(roomId);
+  const room = getRoom(roomId);
   room.clients.set(ws, { userName, ip });
-  room.joinTimes.set(ws, Date.now());
+
+  // jinzhengen is always admin
+  if (!room.admins.includes(SUPER_ADMIN)) room.admins.push(SUPER_ADMIN);
+
   ws._roomId = roomId; ws._userName = userName; ws._ip = ip;
-  const isAdmin = admins.includes(userName);
+  room._joinTimes.set(ws, Date.now());
+  const isAdmin = room.admins.includes(userName);
 
-  // Insert join log
-  try { await query('INSERT INTO join_logs (room_id, username, ip, action, time) VALUES ($1,$2,$3,$4,$5)', [roomId, userName, ip, 'join', Date.now()]); } catch(e) {}
+  room.joinLog.push({ userName, ip, action: 'join', time: Date.now() });
+  if (room.joinLog.length > 500) room.joinLog = room.joinLog.slice(-500);
+  saveNow();
 
-  broadcast(roomId, { type: 'system', text: `${userName} joined` + (isAdmin ? ' 👑' : ''), user: 'SYSTEM', time: Date.now(), online: room.clients.size });
+  broadcast(room, { type: 'system', text: `${userName} joined` + (isAdmin ? ' 👑' : ''), user: 'SYSTEM', time: Date.now(), online: room.clients.size });
 
-  // Send history
-  try {
-    const msgs = await query('SELECT * FROM messages WHERE room_id=$1 ORDER BY time DESC LIMIT 200', [roomId]);
-    ws.send(JSON.stringify({
-      type: 'history',
-      messages: msgs.rows.reverse().map(r => ({
-        type: r.type, id: r.msg_id, user: r.username, text: r.text, time: Number(r.time),
-        deleted: r.deleted, deleteBy: r.delete_by, readBy: r.read_by, replyTo: r.reply_to,
-      })),
-      online: room.clients.size, roomId, admins, isAdmin,
-      hasPassword: !!cfg.password,
-    }));
-  } catch(e) { ws.send(JSON.stringify({ type:'history', messages:[], online:0, roomId, admins, isAdmin })); }
+  ws.send(JSON.stringify({ type: 'history', messages: room.messages.slice(-200), online: room.clients.size, roomId, admins: room.admins, isAdmin, hasPassword: !!room.password }));
 
-  // Read receipts
-  try {
-    await query("UPDATE messages SET read_by = array_append(read_by, $1) WHERE room_id=$2 AND NOT ($1 = ANY(read_by))", [userName, roomId]);
-    broadcast(roomId, { type: 'readUpdate', user: userName, online: room.clients.size });
-  } catch(e) {}
-
-  ws.on('message', async (raw) => {
+  ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-
       if (msg.type === 'chat' && msg.text?.trim()) {
-        const msgId = crypto.randomBytes(6).toString('hex');
-        const now = Date.now();
-        try {
-          await query('INSERT INTO messages (room_id, msg_id, username, text, time, read_by, reply_to) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-            [roomId, msgId, userName, msg.text.trim().slice(0, 2000), now, [userName], msg.replyTo || null]);
-        } catch(e) {}
-        const cm = { type:'chat', id: msgId, user: userName, text: msg.text.trim().slice(0,2000), time: now, readBy: [userName], replyTo: msg.replyTo || null };
-        broadcast(roomId, cm);
+        const cm = { type:'chat', id: crypto.randomBytes(6).toString('hex'), user: ws._userName, text: msg.text.trim().slice(0,2000), time: Date.now(), readBy:[ws._userName], replyTo: msg.replyTo || null };
+        room.messages.push(cm);
+        if (room.messages.length > 1000) room.messages = room.messages.slice(-1000);
+        broadcast(room, cm);
+        saveNow();
       }
-
-      if (msg.type === 'delete') {
-        try { await query("UPDATE messages SET deleted=true, delete_by=$1 WHERE msg_id=$2 AND room_id=$3 AND (username=$1 OR $4=ANY((SELECT admins FROM room_config WHERE room_id=$3)))", [userName, msg.msgId, roomId, userName]); } catch(e) {}
-        broadcast(roomId, { type:'msgDeleted', msgId: msg.msgId, deleteBy: userName });
-      }
-
-      if (msg.type === 'setAdmin' && admins.includes(userName)) {
-        if (!admins.includes(msg.newAdmin)) {
-          admins.push(msg.newAdmin);
-          await query('UPDATE room_config SET admins=$1 WHERE room_id=$2', [admins, roomId]);
-          await query('INSERT INTO join_logs (room_id, username, ip, action, time) VALUES ($1,$2,$3,$4,$5)', [roomId, userName, ip, 'addAdmin:'+msg.newAdmin, Date.now()]);
-          broadcast(roomId, { type:'system', text:`👑 ${msg.newAdmin} が管理者に`, user:'SYSTEM', time: Date.now(), online: room.clients.size, admins });
-        }
-      }
-
-      if (msg.type === 'removeAdmin' && admins.includes(userName)) {
-        if (msg.target !== SUPER_ADMIN) {
-          admins = admins.filter(a => a !== msg.target);
-          await query('UPDATE room_config SET admins=$1 WHERE room_id=$2', [admins, roomId]);
-          broadcast(roomId, { type:'system', text:`${msg.target} 管理者解除`, user:'SYSTEM', time: Date.now(), online: room.clients.size, admins });
-        }
-      }
-
       if (msg.type === 'read') {
-        await query("UPDATE messages SET read_by = array_append(read_by, $1) WHERE room_id=$2 AND NOT ($1 = ANY(read_by))", [userName, roomId]);
-        broadcast(roomId, { type: 'readUpdate', user: userName, online: room.clients.size });
+        // Mark all messages as read by this user
+        let changed = false;
+        for (const m of room.messages) {
+          if (!m.readBy) m.readBy = [];
+          if (!m.readBy.includes(ws._userName)) { m.readBy.push(ws._userName); changed = true; }
+        }
+        if (changed) { broadcast(room, { type:'readUpdate', user: ws._userName, online: room.clients.size }); saveNow(); }
+      }
+      if (msg.type === 'delete') {
+        const t = room.messages.find(m => m.id === msg.msgId);
+        if (!t) return;
+        if (t.user !== ws._userName && !room.admins.includes(ws._userName)) return;
+        t.deleted = true; t.deleteBy = ws._userName; t.deleteTime = Date.now();
+        broadcast(room, { type:'msgDeleted', msgId: msg.msgId, deleteBy: ws._userName });
+        saveNow();
+      }
+      if (msg.type === 'setAdmin' && room.admins.includes(ws._userName)) {
+        if (!room.admins.includes(msg.newAdmin)) room.admins.push(msg.newAdmin);
+        room.joinLog.push({ userName: ws._userName, ip, action:'addAdmin:'+msg.newAdmin, time: Date.now() });
+        broadcast(room, { type:'system', text:`👑 ${msg.newAdmin} が管理者になりました`, user:'SYSTEM', time: Date.now(), online: room.clients.size, admins: room.admins });
+        saveNow();
+      }
+      if (msg.type === 'removeAdmin' && room.admins.includes(ws._userName)) {
+        if (msg.target !== SUPER_ADMIN) {
+          room.admins = room.admins.filter(a => a !== msg.target);
+          room.joinLog.push({ userName: ws._userName, ip, action:'removeAdmin:'+msg.target, time: Date.now() });
+          broadcast(room, { type:'system', text:`${msg.target} の管理者権限が解除されました`, user:'SYSTEM', time: Date.now(), online: room.clients.size, admins: room.admins });
+          saveNow();
+        }
       }
     } catch(e) {}
   });
 
-  ws.on('close', async () => {
-    room.clients.delete(ws); room.joinTimes.delete(ws);
-    try { await query('INSERT INTO join_logs (room_id, username, ip, action, time) VALUES ($1,$2,$3,$4,$5)', [roomId, userName, ip, 'leave', Date.now()]); } catch(e) {}
-    broadcast(roomId, { type:'system', text:`${userName} left`, user:'SYSTEM', time: Date.now(), online: room.clients.size });
+  ws.on('close', () => {
+    room.clients.delete(ws); room._joinTimes.delete(ws);
+    room.joinLog.push({ userName: ws._userName, ip, action:'leave', time: Date.now() });
+    broadcast(room, { type:'system', text:`${ws._userName} left`, user:'SYSTEM', time: Date.now(), online: room.clients.size });
+    if (room.clients.size === 0) setTimeout(() => { if (room.clients.size === 0) rooms.delete(roomId); }, 600000);
+    saveNow();
   });
 });
 
-function broadcast(roomId, msg) {
+function broadcast(room, msg) {
   const d = JSON.stringify(msg);
-  const room = rooms.get(roomId);
-  if (room) room.clients.forEach((_, c) => { if (c.readyState === 1) c.send(d); });
+  room.clients.forEach((_, c) => { if (c.readyState === 1) c.send(d); });
 }
 
-// ═══ Admin API ═══
+// ── Admin API ──
 const ADMIN = { user: 'jinzhengen', pass: 'aabbcc123' };
 function check(req, res) {
   const u = req.query.user || (req.body||{}).user || '';
@@ -188,118 +145,131 @@ function check(req, res) {
   return true;
 }
 
-app.get('/api/admin/rooms', async (req, res) => {
+app.get('/api/admin/rooms', (req, res) => {
   if (!check(req, res)) return;
   const list = [];
-  for (let i = 1; i <= 10; i++) {
-    const id = String(i);
-    const room = rooms.get(id);
-    const online = room ? Array.from(room.clients.values()).map(v => ({userName:v.userName,ip:v.ip})) : [];
-    try {
-      const cfg = await getRoomAdmins(id);
-      const mc = await query('SELECT COUNT(*) as c FROM messages WHERE room_id=$1', [id]);
-      const jc = await query('SELECT COUNT(*) as c FROM join_logs WHERE room_id=$1', [id]);
-      list.push({ roomId: id, admins: cfg.admins||[], password: cfg.password, online, onlineCount: online.length, messageCount: parseInt(mc.rows[0].c), joinLogCount: parseInt(jc.rows[0].c) });
-    } catch(e) {
-      list.push({ roomId: id, admins:[], password:null, online:[], onlineCount:0, messageCount:0, joinLogCount:0 });
-    }
+  for (const [id, r] of rooms) {
+    list.push({
+      roomId: id, admins: r.admins, password: r.password,
+      online: Array.from(r.clients.values()).map(i=>({userName:i.userName,ip:i.ip,isAdmin:r.admins.includes(i.userName)})),
+      onlineCount: r.clients.size, messageCount: r.messages.length, joinLogCount: r.joinLog.length,
+    });
   }
+  for (let i=1; i<=10; i++) {
+    if (!list.find(r=>r.roomId===String(i))) list.push({roomId:String(i),admins:[],password:null,online:[],onlineCount:0,messageCount:0,joinLogCount:0});
+  }
+  list.sort((a,b)=>parseInt(a.roomId)-parseInt(b.roomId));
   res.json(list);
 });
 
-app.get('/api/admin/:roomId', async (req, res) => {
+app.get('/api/admin/:roomId', (req, res) => {
   if (!check(req, res)) return;
-  const room = rooms.get(req.params.roomId);
-  const cfg = await getRoomAdmins(req.params.roomId);
-  const online = room ? Array.from(room.clients.values()).map(v => ({userName:v.userName,ip:v.ip,isAdmin:(cfg.admins||[]).includes(v.userName)})) : [];
-  const msgs = await query('SELECT COUNT(*) as c FROM messages WHERE room_id=$1', [req.params.roomId]);
-  const logs = await query('SELECT * FROM join_logs WHERE room_id=$1 ORDER BY time DESC LIMIT 100', [req.params.roomId]);
+  const room = getRoom(req.params.roomId);
   res.json({
-    roomId: req.params.roomId, admins: cfg.admins||[], password: cfg.password,
-    online, onlineCount: online.length, messageCount: parseInt(msgs.rows[0].c),
-    joinLog: logs.rows.map(r => ({userName:r.username, ip:r.ip, action:r.action, time:Number(r.time)})),
+    roomId: req.params.roomId, admins: room.admins, password: room.password,
+    online: Array.from(room.clients.values()).map(i=>({userName:i.userName,ip:i.ip,isAdmin:room.admins.includes(i.userName)})),
+    onlineCount: room.clients.size, messageCount: room.messages.length,
+    joinLog: room.joinLog.slice(-100).reverse(),
   });
 });
 
-app.post('/api/admin/:roomId/setAdmin', async (req, res) => {
+app.post('/api/admin/:roomId/setAdmin', (req, res) => {
   if (!check(req, res)) return;
-  const cfg = await getRoomAdmins(req.params.roomId);
-  const admins = cfg.admins || [];
-  if (!admins.includes(req.body.newAdmin)) {
-    admins.push(req.body.newAdmin);
-    await query('UPDATE room_config SET admins=$1 WHERE room_id=$2', [admins, req.params.roomId]);
+  const room = getRoom(req.params.roomId);
+  if (!room.admins.includes(req.body.newAdmin)) room.admins.push(req.body.newAdmin);
+  broadcast(room, { type:'system', text:`👑 ${req.body.newAdmin} → 管理者`, user:'SYSTEM', time:Date.now(), online:room.clients.size, admins:room.admins });
+  saveNow();
+  res.json({ok:true});
+});
+
+app.post('/api/admin/:roomId/removeAdmin', (req, res) => {
+  if (!check(req, res)) return;
+  const room = getRoom(req.params.roomId);
+  if (req.body.target !== SUPER_ADMIN) {
+    room.admins = room.admins.filter(a => a !== req.body.target);
+    broadcast(room, { type:'system', text:`${req.body.target} の管理者解除`, user:'SYSTEM', time:Date.now(), online:room.clients.size, admins:room.admins });
+    saveNow();
   }
-  broadcast(req.params.roomId, { type:'system', text:`👑 ${req.body.newAdmin} → 管理者`, user:'SYSTEM', time:Date.now(), online:0, admins });
   res.json({ok:true});
 });
 
-app.post('/api/admin/:roomId/removeAdmin', async (req, res) => {
+app.post('/api/admin/:roomId/setPassword', (req, res) => {
   if (!check(req, res)) return;
-  if (req.body.target === SUPER_ADMIN) return res.json({ok:false});
-  const cfg = await getRoomAdmins(req.params.roomId);
-  const admins = (cfg.admins||[]).filter(a => a !== req.body.target);
-  await query('UPDATE room_config SET admins=$1 WHERE room_id=$2', [admins, req.params.roomId]);
-  broadcast(req.params.roomId, { type:'system', text:`${req.body.target} 管理者解除`, user:'SYSTEM', time:Date.now(), online:0, admins });
-  res.json({ok:true});
+  const room = getRoom(req.params.roomId);
+  room.password = req.body.newPassword || null;
+  saveNow();
+  res.json({ok:true, hasPassword:!!room.password});
 });
 
-app.post('/api/admin/:roomId/setPassword', async (req, res) => {
-  if (!check(req, res)) return;
-  await query('UPDATE room_config SET password=$1 WHERE room_id=$2', [req.body.newPassword||null, req.params.roomId]);
-  res.json({ok:true});
+app.get('/api/room/:roomId/check', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  res.json({exists:!!room, hasPassword:!!(room&&room.password)});
 });
 
-// ═══ Room APIs ═══
-app.get('/api/room/:roomId/check', async (req, res) => {
-  const cfg = await getRoomAdmins(req.params.roomId);
-  res.json({exists:!!cfg, hasPassword:!!cfg.password});
-});
-
-app.post('/api/room/:roomId/verify', async (req, res) => {
-  const cfg = await getRoomAdmins(req.params.roomId);
-  if (!cfg.password || cfg.password === req.body.password) return res.json({ok:true});
+app.post('/api/room/:roomId/verify', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  if (!room) return res.status(404).json({error:'not found'});
+  if (!room.password || room.password===req.body.password) return res.json({ok:true});
   res.status(403).json({error:'wrong password'});
 });
 
-// ═══ Check-in ═══
-app.get('/api/checkin/:roomId/status', async (req, res) => {
+// ═══ Check-in API ═══
+app.get('/api/checkin/:roomId/status', (req, res) => {
   const room = rooms.get(req.params.roomId);
-  if (!room || !req.query.user) return res.json({ canCheckin:false, elapsed:0 });
+  const user = req.query.user;
+  if (!room || !user) return res.json({ canCheckin: false, elapsed: 0 });
+
+  // Find this user's join time
   let joinTime = 0;
-  room.joinTimes.forEach((jt, ws) => { if (room.clients.get(ws)?.userName === req.query.user && jt > joinTime) joinTime = jt; });
-  const elapsed = Math.floor((Date.now() - joinTime) / 1000);
-  const need = 600;
+  for (const [ws, info] of room.clients) {
+    if (info.userName === user) {
+      const jt = room._joinTimes.get(ws);
+      if (jt && jt > joinTime) joinTime = jt;
+    }
+  }
+  const elapsed = (Date.now() - joinTime) / 1000;
+  const need = 600; // 10 minutes
+  const canCheckin = elapsed >= need;
   const today = new Date().toISOString().slice(0,10);
-  const r = await query('SELECT 1 FROM checkins WHERE room_id=$1 AND username=$2 AND date=$3', [req.params.roomId, req.query.user, today]);
-  const already = r.rows.length > 0;
-  const tc = await query('SELECT COUNT(*) as c FROM checkins WHERE room_id=$1 AND username=$2', [req.params.roomId, req.query.user]);
-  res.json({ canCheckin: elapsed>=need && !already, elapsed, need, alreadyChecked:already, total:parseInt(tc.rows[0].c) });
+  const alreadyChecked = (room.checkins[user] || []).includes(today);
+  res.json({ canCheckin: canCheckin && !alreadyChecked, elapsed: Math.floor(elapsed), need, alreadyChecked, total: (room.checkins[user]||[]).length });
 });
 
-app.post('/api/checkin/:roomId', async (req, res) => {
+app.post('/api/checkin/:roomId', (req, res) => {
   const room = rooms.get(req.params.roomId);
-  if (!room) return res.status(400).json({e:'no room'});
+  const user = req.body.user;
+  if (!room || !user) return res.status(400).json({ error: 'bad request' });
+
+  // Verify 10 min
   let joinTime = 0;
-  room.joinTimes.forEach((jt, ws) => { if (room.clients.get(ws)?.userName === req.body.user && jt > joinTime) joinTime = jt; });
-  if ((Date.now()-joinTime)/1000 < 600) return res.status(403).json({e:'need 10 min'});
+  for (const [ws, info] of room.clients) {
+    if (info.userName === user) {
+      const jt = room._joinTimes.get(ws);
+      if (jt && jt > joinTime) joinTime = jt;
+    }
+  }
+  const elapsed = (Date.now() - joinTime) / 1000;
+  if (elapsed < 600) return res.status(403).json({ error: 'need 10 min', elapsed: Math.floor(elapsed) });
+
   const today = new Date().toISOString().slice(0,10);
-  try {
-    await query('INSERT INTO checkins (room_id, username, date) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [req.params.roomId, req.body.user, today]);
-    const all = await query('SELECT date FROM checkins WHERE room_id=$1 AND username=$2 ORDER BY date', [req.params.roomId, req.body.user]);
-    const dates = all.rows.map(r=>r.date);
-    broadcast(req.params.roomId, { type:'system', text:`📅 ${req.body.user} 签到！(${dates.length}日目)`, user:'SYSTEM', time:Date.now(), online:room.clients.size });
-    res.json({ok:true, today, total:dates.length, all:dates});
-  } catch(e) { res.status(409).json({e:'already'}); }
+  if (!room.checkins[user]) room.checkins[user] = [];
+  if (room.checkins[user].includes(today)) return res.status(409).json({ error: 'already' });
+
+  room.checkins[user].push(today);
+  saveNow();
+
+  broadcast(room, { type:'system', text:`📅 ${user} が签到しました！(${room.checkins[user].length}日目)`, user:'SYSTEM', time:Date.now(), online:room.clients.size });
+
+  res.json({ ok: true, date: today, total: room.checkins[user].length, all: room.checkins[user] });
 });
 
-app.get('/api/checkin/:roomId/all', async (req, res) => {
-  const all = await query('SELECT username, date FROM checkins WHERE room_id=$1 ORDER BY date', [req.params.roomId]);
-  const result = {};
-  all.rows.forEach(r => { if (!result[r.username]) result[r.username] = []; result[r.username].push(r.date); });
-  res.json(result);
+app.get('/api/checkin/:roomId/all', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  res.json(room ? room.checkins : {});
 });
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
 
+loadNow();
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('💬 http://localhost:'+PORT));
+server.listen(PORT, () => console.log('💬 http://localhost:'+PORT+'\n🔧 /admin.html'));
