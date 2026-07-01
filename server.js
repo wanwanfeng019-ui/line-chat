@@ -142,6 +142,28 @@ function checkAdmin(req, res) {
   return true;
 }
 
+// List all rooms
+app.get('/api/admin/rooms', (req, res) => {
+  if (!checkAdmin(req, res)) return;
+  const list = [];
+  for (const [id, room] of rooms) {
+    const online = Array.from(room.clients.values()).map(info => ({
+      userName: info.userName,
+      ip: info.ip,
+      isAdmin: info.userName === room.admin,
+    }));
+    list.push({
+      roomId: id,
+      admin: room.admin,
+      online,
+      onlineCount: room.clients.size,
+      messageCount: room.messages.length,
+      joinLogCount: room.joinLog.length,
+    });
+  }
+  res.json(list);
+});
+
 app.get('/api/admin/:roomId', (req, res) => {
   const { roomId } = req.params;
   if (!checkAdmin(req, res)) return;

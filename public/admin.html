@@ -13,49 +13,58 @@
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); padding: 20px; }
-.container { max-width: 900px; margin: 0 auto; }
+.container { max-width: 960px; margin: 0 auto; }
 
 h1 { font-size: 1.4em; margin-bottom: 4px; }
 h1 span { color: var(--line-green); }
-.sub { color: var(--muted); font-size: 0.82em; margin-bottom: 16px; }
+.sub { color: var(--muted); font-size: 0.82em; margin-bottom: 20px; }
 
 .login-card {
-  background: var(--card); border-radius: 16px; padding: 30px; text-align: center;
-  box-shadow: 0 2px 12px rgba(0,0,0,.06); max-width: 400px; margin: 40px auto;
+  background: var(--card); border-radius: 16px; padding: 40px 30px; text-align: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06); max-width: 360px; margin: 60px auto;
 }
-.login-card input, .login-card button {
+.login-card h1 { margin-bottom: 20px; }
+.login-card input {
   width: 100%; padding: 12px 16px; margin: 6px 0; border-radius: 10px;
   border: 1px solid var(--border); font-size: 0.95em; outline: none;
 }
 .login-card button {
-  background: var(--line-green); color: #fff; font-weight: 700; border: none; cursor: pointer;
+  width: 100%; padding: 14px; margin-top: 10px; border-radius: 10px; border: none;
+  background: var(--line-green); color: #fff; font-weight: 700; font-size: 1em; cursor: pointer;
 }
-.login-card button:active { opacity: .85; }
 
 .dashboard { display: none; }
 .top-bar {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
 }
-.top-bar .room-info {
-  background: var(--card); padding: 8px 16px; border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04);
-}
 .top-bar button {
   padding: 8px 16px; border-radius: 10px; border: 1px solid var(--border);
   background: #fff; cursor: pointer; font-size: 0.85em;
 }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
-
 .card {
   background: var(--card); border-radius: 14px; padding: 18px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.05);
+  box-shadow: 0 2px 10px rgba(0,0,0,.05); margin-bottom: 14px;
 }
 .card h3 { font-size: 0.92em; margin-bottom: 12px; color: #555; letter-spacing: 1px; }
 
-.stat-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85em; }
+/* Room list */
+.room-card {
+  background: var(--card); border-radius: 14px; padding: 16px 18px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.05); margin-bottom: 10px;
+  cursor: pointer; transition: transform .15s; border-left: 4px solid var(--line-green);
+}
+.room-card:active { transform: scale(.99); }
+.room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.room-header strong { font-size: 1.05em; }
+.room-stats { display: flex; gap: 16px; font-size: 0.78em; color: var(--muted); }
+
+/* Detail page */
+.detail { display: none; }
+.back-btn { margin-bottom: 12px; cursor: pointer; color: var(--line-green); font-weight: 600; }
+
+.stat-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85em; }
 .stat-row .val { font-weight: 700; }
 
 .user-row {
@@ -72,7 +81,6 @@ h1 span { color: var(--line-green); }
   margin-left: auto; padding: 4px 10px; border-radius: 6px; border: 1px solid #ccc;
   background: #fff; cursor: pointer; font-size: 0.75em;
 }
-.user-row button.danger { color: var(--danger); border-color: var(--danger); }
 
 .log-row {
   padding: 5px 0; border-bottom: 1px solid #fafafa; font-size: 0.78em;
@@ -86,17 +94,10 @@ h1 span { color: var(--line-green); }
 .log-row .lact.leave { color: #e74c3c; }
 .log-row .lact.setAdmin { color: #f39c12; }
 
-.msg-row {
-  padding: 6px 0; border-bottom: 1px solid #fafafa; font-size: 0.78em;
-  display: flex; align-items: center; gap: 8px;
-}
-.msg-row .muser { font-weight: 600; min-width: 60px; }
-.msg-row .mtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-row .mtime { color: var(--muted); }
-.msg-row button {
-  padding: 2px 8px; border-radius: 4px; border: 1px solid #e74c3c;
-  color: #e74c3c; background: #fff; cursor: pointer; font-size: 0.7em;
-}
+.log-scroll { max-height: 320px; overflow-y: auto; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
 
 .toast {
   position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
@@ -104,61 +105,58 @@ h1 span { color: var(--line-green); }
   z-index: 999; opacity: 0; pointer-events: none; transition: opacity .3s;
 }
 .toast.show { opacity: 1; }
-
-.log-scroll { max-height: 320px; overflow-y: auto; }
-.msg-scroll { max-height: 260px; overflow-y: auto; }
 </style>
 </head>
 <body>
 <div class="container">
 
+  <!-- Login -->
   <div id="loginScreen" class="login-card">
     <h1>🔧 管理画面</h1>
-    <p class="sub">LINE風チャット バックエンド</p>
     <input id="userInput" placeholder="アカウント" value="jinzhengen">
-    <input id="roomInput" placeholder="部屋名（例: 家族）">
     <input id="pwdInput" type="password" placeholder="パスワード">
     <button onclick="doLogin()">ログイン</button>
   </div>
 
-  <div id="dashboard" class="dashboard">
-    <h1>🔧 管理画面 <span>#<span id="dRoom"></span></span></h1>
-    <p class="sub">リアルタイム監視 · <span id="dTime"></span></p>
-
+  <!-- Room list -->
+  <div id="roomList" class="dashboard">
     <div class="top-bar">
-      <div class="room-info">
-        👑 管理者: <strong id="dAdmin">---</strong> ·
-        👥 オンライン: <strong id="dCount">0</strong> ·
-        💬 メッセージ: <strong id="dMsgCount">0</strong>
+      <div>
+        <h1>🔧 管理画面 <span>全ルーム</span></h1>
+        <p class="sub" id="dTime">---</p>
       </div>
       <div>
-        <button onclick="loadData()">🔄 更新</button>
+        <button onclick="loadRooms()">🔄 更新</button>
+        <button onclick="doLogout()">↩ ログアウト</button>
+      </div>
+    </div>
+    <div id="roomCards"></div>
+  </div>
+
+  <!-- Room detail -->
+  <div id="detailView" class="detail">
+    <div class="top-bar">
+      <div>
+        <span class="back-btn" onclick="backToRooms()">← ルーム一覧に戻る</span>
+        <h1 id="detailTitle">---</h1>
+      </div>
+      <div>
+        <button onclick="loadRoomDetail()">🔄 更新</button>
         <button onclick="doLogout()">↩ ログアウト</button>
       </div>
     </div>
 
+    <div class="card">
+      <div class="stat-row"><span>👑 管理者</span><span class="val" id="dAdmin">---</span></div>
+      <div class="stat-row"><span>👥 オンライン</span><span class="val" id="dCount">---</span></div>
+      <div class="stat-row"><span>💬 メッセージ数</span><span class="val" id="dMsgCount">---</span></div>
+    </div>
+
     <div class="grid">
-      <!-- Online users -->
       <div class="card">
         <h3>👥 オンラインユーザー</h3>
-        <div id="onlineList">読み込み中…</div>
+        <div id="onlineList">---</div>
       </div>
-
-      <!-- Stats -->
-      <div class="card">
-        <h3>📊 統計</h3>
-        <div class="stat-row"><span>総メッセージ数</span><span class="val" id="sMsg">-</span></div>
-        <div class="stat-row"><span>オンライン数</span><span class="val" id="sOnline">-</span></div>
-        <div class="stat-row"><span>本日の入退室</span><span class="val" id="sLogs">-</span></div>
-      </div>
-
-      <!-- Message management -->
-      <div class="card">
-        <h3>💬 最近のメッセージ</h3>
-        <div class="msg-scroll" id="msgList">---</div>
-      </div>
-
-      <!-- Join/Leave log -->
       <div class="card">
         <h3>📋 入退室ログ</h3>
         <div class="log-scroll" id="logList">---</div>
@@ -170,26 +168,27 @@ h1 span { color: var(--line-green); }
 <div class="toast" id="toast"></div>
 
 <script>
-let currentUser = '', currentRoom = '', currentPwd = '';
+let currentUser = '', currentPwd = '';
 
 // Restore session
 const saved = localStorage.getItem('admin_session');
 if (saved) {
   const s = JSON.parse(saved);
-  if (s.user) currentUser = s.user;
-  currentRoom = s.room; currentPwd = s.pwd;
-  showDashboard();
-  loadData();
+  currentUser = s.user; currentPwd = s.pwd;
+  document.getElementById('loginScreen').style.display = 'none';
+  showRooms();
+  loadRooms();
 }
 
+// ── Login ──
 function doLogin() {
   currentUser = document.getElementById('userInput').value.trim();
-  currentRoom = document.getElementById('roomInput').value.trim();
   currentPwd = document.getElementById('pwdInput').value.trim();
-  if (!currentRoom) return alert('部屋名を入力してください');
-  localStorage.setItem('admin_session', JSON.stringify({ user: currentUser, room: currentRoom, pwd: currentPwd }));
-  showDashboard();
-  loadData();
+  if (!currentUser || !currentPwd) return alert('入力してください');
+  localStorage.setItem('admin_session', JSON.stringify({ user: currentUser, pwd: currentPwd }));
+  document.getElementById('loginScreen').style.display = 'none';
+  showRooms();
+  loadRooms();
 }
 
 function doLogout() {
@@ -197,25 +196,66 @@ function doLogout() {
   location.reload();
 }
 
-function showDashboard() {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('dashboard').style.display = 'block';
-  document.getElementById('dRoom').textContent = currentRoom;
+// ── Room list ──
+function showRooms() {
+  document.getElementById('roomList').style.display = 'block';
+  document.getElementById('detailView').style.display = 'none';
 }
 
-async function loadData() {
+async function loadRooms() {
+  document.getElementById('dTime').textContent = '更新: ' + new Date().toLocaleTimeString('ja-JP');
   try {
-    const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}?user=${encodeURIComponent(currentUser)}&pwd=${encodeURIComponent(currentPwd)}`);
-    if (!res.ok) { toast('⚠️ パスワードが違うか、部屋が存在しません'); return; }
+    const res = await fetch(`/api/admin/rooms?user=${encodeURIComponent(currentUser)}&pwd=${encodeURIComponent(currentPwd)}`);
+    if (!res.ok) { toast('⚠️ 認証エラー'); return; }
+    const rooms = await res.json();
+
+    if (rooms.length === 0) {
+      document.getElementById('roomCards').innerHTML = '<div class="card" style="text-align:center;color:#aaa;padding:30px">アクティブなルームはありません</div>';
+      return;
+    }
+
+    document.getElementById('roomCards').innerHTML = rooms.map(r => `
+      <div class="room-card" onclick="openRoom('${r.roomId}')">
+        <div class="room-header">
+          <strong>💬 ${r.roomId}</strong>
+          <span style="font-size:0.8em;color:#888">👑 ${r.admin || '---'}</span>
+        </div>
+        <div class="room-stats">
+          <span>👥 ${r.onlineCount}人在線</span>
+          <span>💬 ${r.messageCount}件</span>
+          <span>📋 ${r.joinLogCount}ログ</span>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) { toast('⚠️ 通信エラー'); }
+}
+
+// ── Room detail ──
+let detailRoom = '';
+
+function openRoom(roomId) {
+  detailRoom = roomId;
+  document.getElementById('roomList').style.display = 'none';
+  document.getElementById('detailView').style.display = 'block';
+  document.getElementById('detailTitle').textContent = '💬 ' + roomId;
+  loadRoomDetail();
+}
+
+function backToRooms() {
+  detailRoom = '';
+  showRooms();
+  loadRooms();
+}
+
+async function loadRoomDetail() {
+  try {
+    const res = await fetch(`/api/admin/${encodeURIComponent(detailRoom)}?user=${encodeURIComponent(currentUser)}&pwd=${encodeURIComponent(currentPwd)}`);
+    if (!res.ok) { toast('⚠️ 読込エラー'); return; }
     const data = await res.json();
 
     document.getElementById('dAdmin').textContent = data.admin || '---';
     document.getElementById('dCount').textContent = data.onlineCount;
     document.getElementById('dMsgCount').textContent = data.messageCount;
-    document.getElementById('sMsg').textContent = data.messageCount;
-    document.getElementById('sOnline').textContent = data.onlineCount;
-    document.getElementById('sLogs').textContent = data.joinLog.length + '件';
-    document.getElementById('dTime').textContent = new Date().toLocaleTimeString('ja-JP');
 
     // Online users
     document.getElementById('onlineList').innerHTML = data.online.length === 0
@@ -242,26 +282,23 @@ async function loadData() {
           <span class="lip">${l.ip}</span>
         </div>`;
       }).join('');
-  } catch (e) {
-    toast('⚠️ 通信エラー');
-  }
+  } catch (e) { toast('⚠️ 通信エラー'); }
 }
 
 async function makeAdmin(userName) {
   try {
-    const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}/setAdmin`, {
+    const res = await fetch(`/api/admin/${encodeURIComponent(detailRoom)}/setAdmin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user: currentUser, pwd: currentPwd, newAdmin: userName }),
     });
-    if (res.ok) { toast(`✅ ${userName} を管理者に設定しました`); loadData(); }
+    if (res.ok) { toast(`✅ ${userName} を管理者に設定しました`); loadRoomDetail(); }
     else toast('⚠️ 失敗しました');
   } catch (e) { toast('⚠️ 通信エラー'); }
 }
 
-// Auto refresh every 10 seconds
 setInterval(() => {
-  if (document.getElementById('dashboard').style.display !== 'none') loadData();
+  if (document.getElementById('detailView').style.display !== 'none') loadRoomDetail();
 }, 10000);
 
 function toast(msg) {
