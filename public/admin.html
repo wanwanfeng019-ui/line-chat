@@ -150,6 +150,10 @@ h1 span { color: var(--line-green); }
       <div class="stat-row"><span>👑 管理者</span><span class="val" id="dAdmin">---</span></div>
       <div class="stat-row"><span>👥 オンライン</span><span class="val" id="dCount">---</span></div>
       <div class="stat-row"><span>💬 メッセージ数</span><span class="val" id="dMsgCount">---</span></div>
+      <div class="stat-row" style="margin-top:8px">
+        <span>🔒 パスワード</span>
+        <input id="roomPwdInput" placeholder="(空=なし)" style="padding:5px 10px;border-radius:6px;border:1px solid #ddd;font-size:0.85em;width:120px;text-align:center" onchange="saveRoomPwd()">
+      </div>
     </div>
 
     <div class="grid">
@@ -226,7 +230,7 @@ async function loadRooms() {
     document.getElementById('roomCards').innerHTML = rooms.map(r => `
       <div class="room-card" onclick="openRoom('${r.roomId}')">
         <div class="room-header">
-          <strong>💬 ${r.roomId}</strong>
+          <strong>💬 ${r.roomId} ${r.password ? '🔒' : ''}</strong>
           <span style="font-size:0.8em;color:#888">👑 ${r.admin || '---'}</span>
         </div>
         <div class="room-stats">
@@ -274,6 +278,7 @@ async function loadRoomDetail() {
     document.getElementById('dAdmin').textContent = data.admin || '---';
     document.getElementById('dCount').textContent = data.onlineCount;
     document.getElementById('dMsgCount').textContent = data.messageCount;
+    document.getElementById('roomPwdInput').value = data.password || '';
 
     // Online users
     document.getElementById('onlineList').innerHTML = data.online.length === 0
@@ -300,6 +305,19 @@ async function loadRoomDetail() {
           <span class="lip">${l.ip}</span>
         </div>`;
       }).join('');
+  } catch (e) { toast('⚠️ 通信エラー'); }
+}
+
+async function saveRoomPwd() {
+  const pwd = document.getElementById('roomPwdInput').value.trim();
+  try {
+    const res = await fetch(`/api/admin/${encodeURIComponent(detailRoom)}/setPassword`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: currentUser, pwd: currentPwd, newPassword: pwd || null }),
+    });
+    if (res.ok) toast(pwd ? '✅ パスワードを設定しました' : '✅ パスワードを解除しました');
+    else toast('⚠️ 失敗しました');
   } catch (e) { toast('⚠️ 通信エラー'); }
 }
 

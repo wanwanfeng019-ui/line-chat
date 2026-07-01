@@ -6,480 +6,402 @@
 <title>LINE風 グループチャット</title>
 <style>
 :root {
+  --side-w: 180px;
   --line-green: #06C755;
-  --line-dark: #05a348;
   --bg: #849eb7;
   --chat-bg: #7a9abb;
   --bubble-self: #8de896;
   --bubble-other: #fff;
-  --text: #111;
-  --text-light: #666;
-  --border: #ddd;
-  --font: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+  --font: 'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
 }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);height:100vh;height:100dvh;display:flex;overflow:hidden;-webkit-tap-highlight-color:transparent}
 
-* { margin:0; padding:0; box-sizing:border-box; }
-
-body {
-  font-family: var(--font);
-  background: var(--bg);
-  height: 100vh; height: 100dvh;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  -webkit-tap-highlight-color: transparent;
+/* ── Sidebar ── */
+.sidebar {
+  width:var(--side-w);background:#0d1a2d;color:#fff;display:flex;flex-direction:column;
+  flex-shrink:0;border-right:2px solid #1a3350;overflow-y:auto;
 }
+.sidebar h3 { font-size:0.82em;color:#889;padding:14px 12px 8px;letter-spacing:1px }
+.room-btn {
+  display:block;width:100%;padding:11px 14px;border:none;background:none;color:#ccc;
+  text-align:left;cursor:pointer;font-size:0.85em;font-family:var(--font);
+  border-left:3px solid transparent;transition:all .15s;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.room-btn:hover { background:rgba(255,255,255,.05); }
+.room-btn.active { background:rgba(255,255,255,.08);border-left-color:var(--line-green);color:#fff;font-weight:700; }
+.room-btn .lock-icon { font-size:0.7em;opacity:.5; }
+.room-btn .online-dot { width:7px;height:7px;border-radius:50%;background:#666; }
+.room-btn .online-dot.live { background:#27ae60; }
+.sidebar .admin-link { margin-top:auto;padding:10px;text-align:center }
+.sidebar .admin-link a { color:#556;font-size:0.7em;text-decoration:none }
 
-/* ── Header ── */
+/* ── Main ── */
+.main { flex:1;display:flex;flex-direction:column;min-width:0 }
+
+/* Header */
 .header {
-  background: var(--line-green);
-  color: #fff;
-  padding: 12px 16px;
-  display: flex; align-items: center; gap: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.15);
-  z-index: 10; flex-shrink: 0;
+  background:var(--line-green);color:#fff;padding:10px 14px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
 }
-.header .room-title { font-size: 1em; font-weight: 700; flex:1; }
-.header .admin-badge {
-  background: #f0c040; color: #333; padding: 2px 8px;
-  border-radius: 10px; font-size: 0.65em; font-weight: 700;
-}
-.header .online-badge {
-  background: rgba(255,255,255,.25); padding: 3px 10px;
-  border-radius: 12px; font-size: 0.75em;
-}
+.header .room-title { font-size:0.95em;font-weight:700;flex:1 }
+.header .lock-badge { font-size:0.7em;opacity:.7 }
+.header .online-badge { background:rgba(255,255,255,.25);padding:3px 10px;border-radius:12px;font-size:0.72em }
 
-/* ── Chat area ── */
+/* Chat area */
 .chat-area {
-  flex: 1; overflow-y: auto; padding: 10px 12px;
-  background: var(--chat-bg);
-  -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column; gap: 4px;
+  flex:1;overflow-y:auto;padding:10px 12px;background:var(--chat-bg);
+  display:flex;flex-direction:column;gap:4px;-webkit-overflow-scrolling:touch;
 }
-.chat-area::-webkit-scrollbar { width: 4px; }
-.chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 4px; }
+.chat-area::-webkit-scrollbar{width:4px}
+.chat-area::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px}
 
-/* ── Messages ── */
-.msg-wrap {
-  display: flex; flex-direction: column; max-width: 82%;
-  animation: msgIn .2s ease; position: relative;
+/* Messages */
+.msg-wrap{display:flex;flex-direction:column;max-width:82%;animation:in .2s}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-wrap.self{align-self:flex-end;align-items:flex-end}
+.msg-wrap.other{align-self:flex-start;align-items:flex-start}
+.msg-user{font-size:0.62em;color:rgba(0,0,0,.5);padding:0 8px 1px;display:flex;align-items:center;gap:4px}
+.msg-bubble{
+  padding:7px 13px;border-radius:16px;font-size:0.9em;line-height:1.4;
+  word-break:break-word;position:relative;cursor:pointer;user-select:none;
 }
-@keyframes msgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-.msg-wrap.self { align-self: flex-end; align-items: flex-end; }
-.msg-wrap.other { align-self: flex-start; align-items: flex-start; }
+.msg-wrap.self .msg-bubble{background:var(--bubble-self);border-bottom-right-radius:4px}
+.msg-wrap.other .msg-bubble{background:var(--bubble-other);border-bottom-left-radius:4px}
+.msg-time{font-size:0.6em;color:rgba(0,0,0,.4);padding:2px 8px 0}
+.msg-deleted .msg-bubble{background:#eee!important;color:#999;font-style:italic;font-size:0.78em}
+.msg-system{align-self:center;font-size:0.65em;color:rgba(255,255,255,.8);background:rgba(0,0,0,.15);padding:3px 12px;border-radius:10px;margin:3px 0}
 
-.msg-user {
-  font-size: 0.65em; color: rgba(0,0,0,.5); padding: 0 8px; margin-bottom: 1px;
-  display: flex; align-items: center; gap: 4px;
+/* Actions popup */
+.msg-actions{
+  position:fixed;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);
+  z-index:50;padding:4px;display:none;
 }
-.msg-user .admin-icon { font-size: 0.8em; }
+.msg-actions.show{display:flex;flex-direction:column}
+.msg-actions button{
+  padding:8px 18px;border:none;background:none;font-size:0.8em;
+  cursor:pointer;text-align:left;border-radius:8px;font-family:var(--font)
+}
+.msg-actions button:hover{background:#f0f0f0}
+.msg-actions button.danger{color:#e74c3c}
 
-.msg-bubble {
-  padding: 8px 14px; border-radius: 18px;
-  font-size: 0.92em; line-height: 1.45; word-break: break-word;
-  position: relative; cursor: pointer; user-select: none;
-  transition: transform .12s;
+/* Input */
+.input-bar{
+  background:#f5f5f5;padding:8px 10px;display:flex;gap:8px;align-items:center;
+  border-top:1px solid #ddd;flex-shrink:0;padding-bottom:max(8px,env(safe-area-inset-bottom))
 }
-.msg-bubble:active { transform: scale(.98); }
-.msg-wrap.self .msg-bubble {
-  background: var(--bubble-self);
-  border-bottom-right-radius: 4px;
+.input-bar input{
+  flex:1;padding:10px 16px;border-radius:22px;border:1px solid #ddd;
+  font-size:0.9em;outline:none;font-family:var(--font);background:#fff
 }
-.msg-wrap.other .msg-bubble {
-  background: var(--bubble-other);
-  border-bottom-left-radius: 4px;
+.input-bar input:focus{border-color:var(--line-green)}
+.input-bar button{
+  width:42px;height:42px;border-radius:50%;border:none;background:var(--line-green);
+  color:#fff;font-size:1.2em;cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center
 }
-.msg-time {
-  font-size: 0.62em; color: rgba(0,0,0,.4); padding: 2px 8px 0;
-}
+.input-bar button:active{background:#05a348}
 
-/* Deleted message */
-.msg-deleted .msg-bubble {
-  background: #eee !important; color: #999; font-style: italic;
-  font-size: 0.8em; padding: 6px 14px;
+/* Overlays */
+.overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);
+  z-index:100;display:flex;align-items:center;justify-content:center
 }
+.overlay.hidden{display:none}
+.dialog{background:#fff;border-radius:20px;padding:28px 24px;width:90%;max-width:340px;text-align:center}
+.dialog h2{font-size:1.1em;margin-bottom:6px}
+.dialog p{font-size:0.78em;color:#888;margin-bottom:16px}
+.dialog input{
+  width:100%;padding:12px;border-radius:10px;border:1px solid #ddd;
+  font-size:0.95em;margin:4px 0;outline:none;text-align:center;font-family:var(--font)
+}
+.dialog input:focus{border-color:var(--line-green)}
+.dialog button{
+  width:100%;padding:12px;border-radius:10px;border:none;
+  background:var(--line-green);color:#fff;font-weight:700;font-size:0.95em;cursor:pointer;margin-top:10px
+}
+.dialog .err{color:#e74c3c;font-size:0.78em;margin-top:6px}
+.toast{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.8);color:#fff;padding:8px 20px;border-radius:20px;
+  font-size:0.8em;z-index:200;opacity:0;pointer-events:none;transition:opacity .3s
+}
+.toast.show{opacity:1}
 
-/* ── Message action menu ── */
-.msg-actions {
-  position: absolute; background: #fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,.25);
-  z-index: 50; padding: 4px; display: none; white-space: nowrap;
-}
-.msg-actions.show { display: flex; flex-direction: column; }
-.msg-actions button {
-  padding: 8px 18px; border: none; background: none;
-  font-size: 0.85em; cursor: pointer; text-align: left; border-radius: 8px;
-  font-family: var(--font); white-space: nowrap;
-}
-.msg-actions button:hover { background: #f0f0f0; }
-.msg-actions button.danger { color: #e74c3c; }
-
-/* System message */
-.msg-system {
-  align-self: center; font-size: 0.7em; color: rgba(255,255,255,.8);
-  background: rgba(0,0,0,.15); padding: 4px 14px; border-radius: 10px;
-  margin: 4px 0; animation: msgIn .2s ease;
-}
-
-/* ── Input bar ── */
-.input-bar {
-  background: #f5f5f5; padding: 8px 10px;
-  display: flex; gap: 8px; align-items: center;
-  border-top: 1px solid var(--border); flex-shrink: 0;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
-}
-.input-bar input {
-  flex: 1; padding: 10px 16px; border-radius: 22px;
-  border: 1px solid var(--border); font-size: 0.92em; outline: none;
-  font-family: var(--font); background: #fff;
-}
-.input-bar input:focus { border-color: var(--line-green); }
-.input-bar button {
-  width: 42px; height: 42px; border-radius: 50%; border: none;
-  background: var(--line-green); color: #fff; font-size: 1.2em;
-  cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  transition: transform .15s;
-}
-.input-bar button:active { transform: scale(.9); background: var(--line-dark); }
-
-/* ── Setup overlay ── */
-.overlay {
-  position: fixed; top:0; left:0; right:0; bottom:0;
-  background: rgba(0,0,0,.5); z-index: 100;
-  display: flex; align-items: center; justify-content: center;
-}
-.overlay.hidden { display: none; }
-.setup-card {
-  background: #fff; border-radius: 20px; padding: 28px 24px;
-  width: 90%; max-width: 360px; text-align: center;
-}
-.setup-card h2 { font-size: 1.2em; margin-bottom: 6px; }
-.setup-card p { font-size: 0.82em; color: #888; margin-bottom: 18px; }
-.setup-card input {
-  width: 100%; padding: 12px 16px; border-radius: 12px;
-  border: 1px solid #ddd; font-size: 1em; margin-bottom: 8px;
-  outline: none; font-family: var(--font); text-align: center;
-}
-.setup-card input:focus { border-color: var(--line-green); }
-.setup-card .room-id { font-size: 0.78em; color: #aaa; margin-bottom: 14px; }
-.setup-card button {
-  width: 100%; padding: 14px; border-radius: 14px; border: none;
-  background: var(--line-green); color: #fff; font-size: 1em; font-weight: 700;
-  cursor: pointer;
-}
-
-/* ── Share bar ── */
-.share-bar {
-  background: #fff; padding: 8px 12px;
-  display: flex; gap: 8px; align-items: center;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0; font-size: 0.76em;
-}
-.share-bar .share-link {
-  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: #555; background: #f0f0f0; padding: 5px 10px; border-radius: 6px;
-}
-.share-bar button {
-  padding: 5px 12px; border-radius: 8px; border: none;
-  background: var(--line-green); color: #fff; font-size: 0.8em; cursor: pointer; flex-shrink: 0;
-}
-
-/* ── Toast ── */
-.toast {
-  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,.8); color: #fff; padding: 8px 20px;
-  border-radius: 20px; font-size: 0.85em; z-index: 200;
-  opacity: 0; pointer-events: none; transition: opacity .3s;
-}
-.toast.show { opacity: 1; }
-
-/* ── User list ── */
-.user-panel {
-  position: fixed; right: 0; top: 0; bottom: 0;
-  width: 260px; background: #fff; z-index: 90;
-  box-shadow: -4px 0 20px rgba(0,0,0,.15);
-  transform: translateX(100%); transition: transform .3s;
-  padding: 20px; overflow-y: auto;
-}
-.user-panel.open { transform: translateX(0); }
-.user-panel h3 { font-size: 0.9em; margin-bottom: 12px; }
-.user-panel .u-item {
-  padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85em;
-  display: flex; align-items: center; gap: 6px;
-}
-.user-panel .set-admin-btn {
-  font-size: 0.7em; padding: 3px 8px; border-radius: 6px;
-  border: 1px solid #ccc; background: #fff; cursor: pointer;
-  margin-left: auto;
-}
+@media(max-width:600px){:root{--side-w:110px}.room-btn{font-size:0.72em;padding:10px 8px}}
 </style>
 </head>
 <body>
 
-<!-- Setup Overlay -->
-<div class="overlay" id="overlay">
-  <div class="setup-card">
-    <h2>💬 チャットに参加</h2>
-    <p>LINE風グループチャット</p>
-    <input id="nameInput" placeholder="あなたの名前" maxlength="20" autocomplete="off">
-    <div class="room-id">部屋: <strong id="roomDisplay"></strong></div>
-    <button onclick="joinChat()">参加する</button>
+<!-- Sidebar -->
+<div class="sidebar">
+  <h3>🏠 ルーム</h3>
+  <div id="roomBtns"></div>
+  <div class="admin-link"><a href="/admin.html" target="_blank">🔧 管理</a></div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="header">
+    <span class="room-title" id="roomTitle">---</span>
+    <span class="lock-badge" id="lockBadge">🔒</span>
+    <span class="online-badge" id="onlineBadge">0</span>
+  </div>
+
+  <div class="chat-area" id="chatArea"><div class="msg-system">👈 左のルームを選択</div></div>
+
+  <div class="input-bar">
+    <input id="msgInput" placeholder="メッセージ…" maxlength="2000" autocomplete="off" disabled>
+    <button onclick="send()">➤</button>
   </div>
 </div>
 
-<!-- User panel -->
-<div class="user-panel" id="userPanel">
-  <h3>👥 オンラインメンバー</h3>
-  <div id="userList"></div>
-  <button style="margin-top:12px;width:100%;padding:8px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="togglePanel()">閉じる</button>
+<!-- Name dialog -->
+<div class="overlay" id="nameOverlay">
+  <div class="dialog">
+    <h2>💬 名前を入力</h2>
+    <input id="nameInput" placeholder="あなたの名前" maxlength="20" autocomplete="off">
+    <button onclick="setName()">OK</button>
+  </div>
 </div>
 
-<!-- Header -->
-<div class="header">
-  <span class="room-title" id="roomTitle">チャット</span>
-  <span class="admin-badge" id="adminBadge" style="display:none">👑 管理者</span>
-  <span class="online-badge" id="onlineBadge" onclick="togglePanel()" style="cursor:pointer">👤 0</span>
+<!-- Password dialog -->
+<div class="overlay hidden" id="pwdOverlay">
+  <div class="dialog">
+    <h2>🔒 パスワード</h2>
+    <p id="pwdRoomName"></p>
+    <input id="pwdInput" type="password" placeholder="パスワードを入力" autocomplete="off">
+    <div class="err" id="pwdErr"></div>
+    <button onclick="checkPwd()">入室</button>
+  </div>
 </div>
 
-<!-- Share -->
-<div class="share-bar">
-  <span class="share-link" id="shareLink">---</span>
-  <button onclick="copyLink()">📋 リンクをコピー</button>
-</div>
-
-<!-- Chat -->
-<div class="chat-area" id="chatArea">
-  <div class="msg-system">ようこそ！メッセージを送ってみましょう ✨</div>
-</div>
-
-<!-- Input -->
-<div class="input-bar">
-  <input id="msgInput" placeholder="メッセージを入力…" maxlength="2000" autocomplete="off">
-  <button onclick="sendMessage()">➤</button>
-</div>
-
-<!-- Message action menu -->
+<!-- Actions -->
 <div class="msg-actions" id="msgActions"></div>
-
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
 // ── State ──
-const urlParams = new URLSearchParams(location.search);
-const ROOM = urlParams.get('room') || location.pathname.replace(/^\/+/,'') || 'chat';
-const USER_KEY = 'linechat_user_' + ROOM;
+const USER_KEY = 'linechat_name';
 let userName = localStorage.getItem(USER_KEY) || '';
-let isAdmin = false;
-let roomAdmin = '';
-const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const SHARE_URL = location.origin + '?room=' + ROOM;
-let activeMsgId = null;
+let currentRoom = '', ws = null, isAdmin = false, roomAdmin = '';
+let pwdCache = {}; // roomId → password (cached in session)
 
-document.getElementById('roomDisplay').textContent = ROOM;
-document.getElementById('roomTitle').textContent = '💬 ' + ROOM;
-document.getElementById('shareLink').textContent = SHARE_URL;
-document.getElementById('nameInput').value = userName;
-
-if (userName) {
-  document.getElementById('overlay').classList.add('hidden');
-  connectWS();
+// Init sidebar
+const roomBtns = document.getElementById('roomBtns');
+for (let i = 1; i <= 10; i++) {
+  const btn = document.createElement('button');
+  btn.className = 'room-btn';
+  btn.innerHTML = `<span>部屋 ${i}</span><span class="online-dot" id="dot${i}"></span>`;
+  btn.onclick = () => selectRoom(String(i));
+  roomBtns.appendChild(btn);
 }
 
-// ── Join ──
-window.joinChat = function() {
-  const name = document.getElementById('nameInput').value.trim();
-  if (!name) return alert('名前を入力してください');
-  userName = name;
-  localStorage.setItem(USER_KEY, name);
-  document.getElementById('overlay').classList.add('hidden');
-  connectWS();
-};
+// Name dialog
+if (!userName) {
+  document.getElementById('nameOverlay').classList.remove('hidden');
+  document.getElementById('nameInput').focus();
+} else {
+  document.getElementById('nameOverlay').classList.add('hidden');
+  selectRoom('1');
+}
 
-document.getElementById('nameInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') joinChat();
-});
+function setName() {
+  const n = document.getElementById('nameInput').value.trim();
+  if (!n) return;
+  userName = n;
+  localStorage.setItem(USER_KEY, n);
+  document.getElementById('nameOverlay').classList.add('hidden');
+  selectRoom('1');
+}
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') setName(); });
 
-// ── WebSocket ──
-let ws;
-function connectWS() {
-  ws = new WebSocket(wsProtocol + '//' + location.host + '/ws?room=' + encodeURIComponent(ROOM) + '&user=' + encodeURIComponent(userName));
+// ── Room selection ──
+async function selectRoom(id) {
+  // Check if password needed
+  try {
+    const r = await fetch(`/api/room/${id}/check`);
+    const info = await r.json();
 
-  ws.onopen = () => updateShareLink();
+    if (info.hasPassword && !pwdCache[id]) {
+      // Need password
+      currentRoom = id;
+      document.getElementById('pwdRoomName').textContent = `部屋 ${id}`;
+      document.getElementById('pwdOverlay').classList.remove('hidden');
+      document.getElementById('pwdInput').value = '';
+      document.getElementById('pwdErr').textContent = '';
+      document.getElementById('pwdInput').focus();
+      return;
+    }
+    connectRoom(id);
+  } catch (e) {
+    connectRoom(id);
+  }
+}
+
+async function checkPwd() {
+  const pwd = document.getElementById('pwdInput').value.trim();
+  if (!pwd) return;
+  try {
+    const r = await fetch(`/api/room/${currentRoom}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd }),
+    });
+    if (r.ok) {
+      pwdCache[currentRoom] = true;
+      document.getElementById('pwdOverlay').classList.add('hidden');
+      connectRoom(currentRoom);
+    } else {
+      document.getElementById('pwdErr').textContent = '⚠️ パスワードが違います';
+    }
+  } catch (e) { document.getElementById('pwdErr').textContent = '⚠️ 通信エラー'; }
+}
+document.getElementById('pwdInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkPwd(); });
+
+// ── Connect ──
+function connectRoom(id) {
+  // Disconnect prev
+  if (ws) { ws.onclose = null; ws.close(); }
+  currentRoom = id;
+  document.getElementById('chatArea').innerHTML = '<div class="msg-system">接続中…</div>';
+  document.getElementById('msgInput').disabled = true;
+  document.getElementById('lockBadge').style.display = 'none';
+
+  // Highlight sidebar
+  document.querySelectorAll('.room-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('roomBtns').children[parseInt(id) - 1];
+  if (btn) btn.classList.add('active');
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws?room=' + id + '&user=' + encodeURIComponent(userName));
+
+  ws.onopen = () => {
+    document.getElementById('msgInput').disabled = false;
+    document.getElementById('msgInput').focus();
+    document.getElementById('roomTitle').textContent = '💬 部屋 ' + id;
+  };
 
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    const area = document.getElementById('chatArea');
-
     if (msg.type === 'history') {
       isAdmin = msg.isAdmin;
       roomAdmin = msg.admin;
-      updateAdminUI();
-      document.getElementById('onlineBadge').textContent = '👤 ' + msg.online;
-      area.innerHTML = '<div class="msg-system">ようこそ！✨</div>';
-      msg.messages.forEach(m => appendMessage(m, false));
-      area.scrollTop = area.scrollHeight;
+      document.getElementById('lockBadge').style.display = msg.hasPassword ? 'inline' : 'none';
+      document.getElementById('onlineBadge').textContent = msg.online;
+      updateDot(id, msg.online);
+      document.getElementById('chatArea').innerHTML = '';
+      msg.messages.forEach(m => appendMsg(m, false));
+      document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight;
     }
-
-    if (msg.type === 'chat') appendMessage(msg, true);
+    if (msg.type === 'chat') appendMsg(msg, true);
     if (msg.type === 'msgDeleted') {
-      const el = document.getElementById('msg-' + msg.msgId);
-      if (el) {
-        el.classList.add('msg-deleted');
-        el.querySelector('.msg-bubble').textContent = 'このメッセージは削除されました';
-      }
+      const el = document.getElementById('m-' + msg.msgId);
+      if (el) { el.classList.add('msg-deleted'); el.querySelector('.msg-bubble').textContent = '削除されました'; }
     }
     if (msg.type === 'system') {
-      if (msg.admin !== undefined) { roomAdmin = msg.admin; updateAdminUI(); }
-      document.getElementById('onlineBadge').textContent = '👤 ' + (msg.online || '?');
-      addSystem(msg.text);
+      document.getElementById('onlineBadge').textContent = msg.online || '?';
+      if (msg.admin !== undefined) { roomAdmin = msg.admin; isAdmin = (userName === msg.admin); }
+      addSys(msg.text);
+      updateDot(id, msg.online);
     }
   };
 
-  ws.onclose = () => addSystem('⚠️ 接続が切れました。ページをリロードしてください。');
+  ws.onclose = () => {
+    addSys('⚠️ 切断');
+    document.getElementById('msgInput').disabled = true;
+    updateDot(id, 0);
+  };
+}
+
+function updateDot(id, count) {
+  const dot = document.getElementById('dot' + id);
+  if (dot) { dot.className = 'online-dot' + (count > 0 ? ' live' : ''); }
 }
 
 // ── Send ──
-window.sendMessage = function() {
-  const input = document.getElementById('msgInput');
-  const text = input.value.trim();
-  if (!text || !ws || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({ type: 'chat', text }));
-  input.value = '';
-  input.focus();
+window.send = function() {
+  const inp = document.getElementById('msgInput');
+  const t = inp.value.trim();
+  if (!t || !ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'chat', text: t }));
+  inp.value = ''; inp.focus();
 };
+document.getElementById('msgInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 
-document.getElementById('msgInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
+// ── Messages ──
+function appendMsg(msg, scroll) {
+  const a = document.getElementById('chatArea');
+  const w = document.createElement('div');
+  const self = msg.user === userName;
+  w.className = 'msg-wrap ' + (self ? 'self' : 'other');
+  if (msg.deleted) w.classList.add('msg-deleted');
+  w.id = 'm-' + msg.id;
 
-// ── Delete message ──
-window.deleteMsg = function(msgId) {
-  if (!ws || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({ type: 'delete', msgId }));
-  hideActions();
-};
+  const u = document.createElement('div');
+  u.className = 'msg-user';
+  u.innerHTML = (self ? '' : msg.user) + (msg.user === roomAdmin ? ' 👑' : '');
 
-// ── Set admin ──
-window.setAdmin = function(newAdmin) {
-  if (!ws || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({ type: 'setAdmin', newAdmin }));
-};
+  const b = document.createElement('div');
+  b.className = 'msg-bubble';
+  b.textContent = msg.deleted ? '削除されました' : msg.text;
 
-// ── Append message ──
-function appendMessage(msg, scroll) {
-  const area = document.getElementById('chatArea');
-  const wrap = document.createElement('div');
-  const isSelf = msg.user === userName;
-  wrap.className = 'msg-wrap ' + (isSelf ? 'self' : 'other');
-  if (msg.deleted) wrap.classList.add('msg-deleted');
-  wrap.id = 'msg-' + msg.id;
+  let timer;
+  b.addEventListener('touchstart', () => { timer = setTimeout(() => showActions(msg), 500); });
+  b.addEventListener('touchend', () => clearTimeout(timer));
+  b.addEventListener('touchmove', () => clearTimeout(timer));
+  b.addEventListener('contextmenu', e => { e.preventDefault(); showActions(msg); });
 
-  const uname = document.createElement('div');
-  uname.className = 'msg-user';
-  uname.innerHTML = (isSelf ? '' : msg.user) + (msg.user === roomAdmin ? ' <span class="admin-icon">👑</span>' : '');
+  const t = document.createElement('div');
+  t.className = 'msg-time';
+  t.textContent = new Date(msg.time).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
 
-  const bubble = document.createElement('div');
-  bubble.className = 'msg-bubble';
-  bubble.textContent = msg.deleted ? 'このメッセージは削除されました' : msg.text;
-
-  // Long press / right click to show actions
-  let longPressTimer;
-  bubble.addEventListener('touchstart', (e) => {
-    longPressTimer = setTimeout(() => showActions(msg, e), 500);
-  });
-  bubble.addEventListener('touchend', () => clearTimeout(longPressTimer));
-  bubble.addEventListener('touchmove', () => clearTimeout(longPressTimer));
-  bubble.addEventListener('contextmenu', (e) => { e.preventDefault(); showActions(msg, e); });
-
-  const time = document.createElement('div');
-  time.className = 'msg-time';
-  const d = new Date(msg.time);
-  time.textContent = d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
-
-  wrap.appendChild(uname);
-  wrap.appendChild(bubble);
-  wrap.appendChild(time);
-  area.appendChild(wrap);
-  if (scroll) { area.scrollTop = area.scrollHeight; }
+  w.appendChild(u); w.appendChild(b); w.appendChild(t);
+  a.appendChild(w);
+  if (scroll) a.scrollTop = a.scrollHeight;
 }
 
-function addSystem(text) {
+function addSys(text) {
   const el = document.createElement('div');
   el.className = 'msg-system'; el.textContent = text;
   document.getElementById('chatArea').appendChild(el);
   document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight;
 }
 
-// ── Message actions ──
-function showActions(msg, event) {
-  // Don't show actions for deleted messages
+// ── Delete actions ──
+function showActions(msg) {
   if (msg.deleted) return;
   const menu = document.getElementById('msgActions');
-  const canDelete = (msg.user === userName) || isAdmin;
-
-  let html = '';
-  if (canDelete) {
-    html += '<button class="danger" onclick="deleteMsg(\'' + msg.id + '\')">🗑 削除</button>';
-  }
+  const can = (msg.user === userName) || isAdmin;
+  if (!can) return;
+  menu.innerHTML = '<button class="danger" onclick="delMsg(\'' + msg.id + '\')">🗑 削除</button>';
   if (isAdmin && msg.user !== userName) {
-    html += '<button onclick="setAdmin(\'' + msg.user + '\')">👑 管理者にする</button>';
+    menu.innerHTML += '<button onclick="makeAdmin(\'' + msg.user + '\')">👑 管理者にする</button>';
   }
-  if (!html) return;
-
-  menu.innerHTML = html;
   menu.classList.add('show');
-
-  // Position near the touch point
-  const x = (event.touches ? event.touches[0].clientX : event.clientX) || 100;
-  const y = (event.touches ? event.touches[0].clientY : event.clientY) || 200;
-  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
-  menu.style.top = (y - 80) + 'px';
-  activeMsgId = msg.id;
-
-  setTimeout(() => {
-    document.addEventListener('click', hideActions, { once: true });
-  }, 100);
+  menu.style.left = '40%';
+  menu.style.bottom = '80px';
+  setTimeout(() => document.addEventListener('click', () => menu.classList.remove('show'), { once: true }), 100);
 }
 
-function hideActions() {
+window.delMsg = function(id) {
+  if (ws) ws.send(JSON.stringify({ type: 'delete', msgId: id }));
   document.getElementById('msgActions').classList.remove('show');
-  activeMsgId = null;
-}
-
-// ── Admin UI ──
-function updateAdminUI() {
-  const badge = document.getElementById('adminBadge');
-  if (isAdmin) { badge.style.display = 'inline'; badge.textContent = '👑 管理者'; }
-  else if (userName === roomAdmin) { badge.style.display = 'inline'; badge.textContent = '👑 管理者'; isAdmin = true; }
-  else { badge.style.display = 'none'; }
-}
-
-// ── User panel ──
-function togglePanel() {
-  document.getElementById('userPanel').classList.toggle('open');
-}
-
-// ── Copy ──
-function updateShareLink() {
-  document.getElementById('shareLink').textContent = SHARE_URL;
-}
-
-window.copyLink = function() {
-  const url = SHARE_URL;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(() => toast('✅ リンクをコピーしました！'));
-  } else {
-    const ta = document.createElement('textarea'); ta.value = url;
-    ta.style.cssText = 'position:fixed;opacity:0;';
-    document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
-    toast('✅ リンクをコピーしました！');
-  }
+};
+window.makeAdmin = function(u) {
+  if (ws) ws.send(JSON.stringify({ type: 'setAdmin', newAdmin: u }));
+  document.getElementById('msgActions').classList.remove('show');
 };
 
-function toast(msg) {
+// Auto-reconnect
+setInterval(() => {
+  if (currentRoom && (!ws || ws.readyState === 3)) connectRoom(currentRoom);
+}, 5000);
+
+function toast(m) {
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  t.textContent = m; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000);
 }
 </script>
