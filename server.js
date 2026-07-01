@@ -17,8 +17,10 @@ const SUPER_ADMIN = 'jinzhengen';
 
 function getRoom(id) {
   if (!rooms.has(id)) rooms.set(id, {
-    admins: [], messages: [], password: null, clients: new Map(), joinLog: [],
+    admins: [], messages: [], password: null, clients: new Map(), joinLog: [], checkins: {},
   });
+  // Track join time for each client
+  if (!rooms.get(id)._joinTimes) rooms.get(id)._joinTimes = new Map();
   return rooms.get(id);
 }
 
@@ -27,7 +29,7 @@ function saveNow() {
   try {
     const obj = {};
     for (const [id, r] of rooms) {
-      obj[id] = { admins: r.admins, password: r.password, messages: r.messages.slice(-300), joinLog: r.joinLog.slice(-100) };
+      obj[id] = { admins: r.admins, password: r.password, messages: r.messages.slice(-300), joinLog: r.joinLog.slice(-100), checkins: r.checkins || {} };
     }
     fs.writeFileSync(DATA_FILE, JSON.stringify(obj));
   } catch(e) {}
@@ -37,7 +39,7 @@ function loadNow() {
     if (!fs.existsSync(DATA_FILE)) return;
     const obj = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     for (const [id, d] of Object.entries(obj)) {
-      rooms.set(id, { admins: d.admins || [], password: d.password || null, messages: d.messages || [], clients: new Map(), joinLog: d.joinLog || [] });
+      rooms.set(id, { admins: d.admins || [], password: d.password || null, messages: d.messages || [], clients: new Map(), joinLog: d.joinLog || [], checkins: d.checkins || {} });
     }
     console.log('📂 ' + Object.keys(obj).length + ' rooms loaded');
   } catch(e) {}
@@ -65,6 +67,7 @@ wss.on('connection', (ws, req) => {
   if (!room.admins.includes(SUPER_ADMIN)) room.admins.push(SUPER_ADMIN);
 
   ws._roomId = roomId; ws._userName = userName; ws._ip = ip;
+  room._joinTimes.set(ws, Date.now());
   const isAdmin = room.admins.includes(userName);
 
   room.joinLog.push({ userName, ip, action: 'join', time: Date.now() });
@@ -120,7 +123,7 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    room.clients.delete(ws);
+    room.clients.delete(ws); room._joinTimes.delete(ws);
     room.joinLog.push({ userName: ws._userName, ip, action:'leave', time: Date.now() });
     broadcast(room, { type:'system', text:`${ws._userName} left`, user:'SYSTEM', time: Date.now(), online: room.clients.size });
     if (room.clients.size === 0) setTimeout(() => { if (room.clients.size === 0) rooms.delete(roomId); }, 600000);
@@ -208,6 +211,61 @@ app.post('/api/room/:roomId/verify', (req, res) => {
   if (!room) return res.status(404).json({error:'not found'});
   if (!room.password || room.password===req.body.password) return res.json({ok:true});
   res.status(403).json({error:'wrong password'});
+});
+
+// ═══ Check-in API ═══
+app.get('/api/checkin/:roomId/status', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  const user = req.query.user;
+  if (!room || !user) return res.json({ canCheckin: false, elapsed: 0 });
+
+  // Find this user's join time
+  let joinTime = 0;
+  for (const [ws, info] of room.clients) {
+    if (info.userName === user) {
+      const jt = room._joinTimes.get(ws);
+      if (jt && jt > joinTime) joinTime = jt;
+    }
+  }
+  const elapsed = (Date.now() - joinTime) / 1000;
+  const need = 600; // 10 minutes
+  const canCheckin = elapsed >= need;
+  const today = new Date().toISOString().slice(0,10);
+  const alreadyChecked = (room.checkins[user] || []).includes(today);
+  res.json({ canCheckin: canCheckin && !alreadyChecked, elapsed: Math.floor(elapsed), need, alreadyChecked, total: (room.checkins[user]||[]).length });
+});
+
+app.post('/api/checkin/:roomId', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  const user = req.body.user;
+  if (!room || !user) return res.status(400).json({ error: 'bad request' });
+
+  // Verify 10 min
+  let joinTime = 0;
+  for (const [ws, info] of room.clients) {
+    if (info.userName === user) {
+      const jt = room._joinTimes.get(ws);
+      if (jt && jt > joinTime) joinTime = jt;
+    }
+  }
+  const elapsed = (Date.now() - joinTime) / 1000;
+  if (elapsed < 600) return res.status(403).json({ error: 'need 10 min', elapsed: Math.floor(elapsed) });
+
+  const today = new Date().toISOString().slice(0,10);
+  if (!room.checkins[user]) room.checkins[user] = [];
+  if (room.checkins[user].includes(today)) return res.status(409).json({ error: 'already' });
+
+  room.checkins[user].push(today);
+  saveNow();
+
+  broadcast(room, { type:'system', text:`📅 ${user} が签到しました！(${room.checkins[user].length}日目)`, user:'SYSTEM', time:Date.now(), online:room.clients.size });
+
+  res.json({ ok: true, date: today, total: room.checkins[user].length, all: room.checkins[user] });
+});
+
+app.get('/api/checkin/:roomId/all', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  res.json(room ? room.checkins : {});
 });
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));

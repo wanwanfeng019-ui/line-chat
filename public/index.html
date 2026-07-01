@@ -110,7 +110,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100dv
 
 /* Overlay */
 .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center}.overlay.hidden{display:none}
-.dialog{background:var(--bubble-you);border-radius:16px;padding:28px 24px;width:90%;max-width:340px;text-align:center}.dialog h3{font-size:1em;margin-bottom:6px}.dialog p{font-size:.75em;color:var(--text2);margin-bottom:14px}.dialog input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--chat-bg);color:var(--text);font-size:.9em;margin:4px 0;outline:none;text-align:center;font-family:var(--font)}.dialog input:focus{border-color:var(--green)}.dialog button{width:100%;padding:11px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:600;font-size:.9em;cursor:pointer;margin-top:10px}.dialog .err{color:#ea0038;font-size:.73em;margin-top:4px}
+.dialog{background:var(--bubble-you);border-radius:16px;padding:28px 24px;width:90%;max-width:340px;text-align:center}.dialog h3{font-size:1em;margin-bottom:6px}.dialog p{font-size:.75em;color:var(--text2);margin-bottom:14px}.dialog input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--chat-bg);color:var(--text);font-size:.9em;margin:4px 0;outline:none;text-align:center;font-family:var(--font)}.dialog input:focus{border-color:var(--green)}.dialog button{width:100%;padding:11px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:600;font-size:.9em;cursor:pointer;margin-top:10px}
+/* Calendar */
+.cal-dialog{max-width:380px}
+.cal-header{display:flex;justify-content:space-between;align-items:center;margin:10px 0}
+.cal-header button{background:transparent;color:var(--text);border:none;font-size:1.2em;cursor:pointer;width:auto;padding:4px 12px}
+.cal-header span{font-weight:700;font-size:.95em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal-dow{font-size:.65em;color:var(--text3);padding:4px 0}
+.cal-day{font-size:.78em;padding:6px 0;border-radius:6px;cursor:default}
+.cal-day.checked{background:var(--green);color:#fff;font-weight:700}
+.cal-day.today{border:1px solid var(--green)}
+.cal-day.dim{color:#444}
+.cal-checkin-btn{width:100%;padding:11px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:600;font-size:.9em;cursor:pointer;margin-top:12px;font-family:var(--font)}
+.cal-checkin-btn:disabled{background:#444;color:#888;cursor:not-allowed}.dialog .err{color:#ea0038;font-size:.73em;margin-top:4px}
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:20px;font-size:.78em;z-index:200;opacity:0;pointer-events:none;transition:opacity .3s}.toast.show{opacity:1}
 
 .empty-state{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text3);gap:8px;font-size:.9em}
@@ -137,6 +150,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100dv
   <div class="chat-header" id="chatHeader" style="display:none">
     <div class="avatar" id="chatAvatar">🏠</div>
     <div class="info"><div class="name" id="chatName">---</div><div class="members" id="chatMembers">---</div></div>
+    <span style="font-size:1.1em;cursor:pointer" id="checkinBtn" onclick="toggleCalendar()" title="签到">📅</span>
     <span style="color:var(--text3);font-size:.68em;cursor:pointer" onclick="backToSidebar()">← 戻る</span>
   </div>
   <div class="messages" id="messages" style="display:none"></div>
@@ -166,6 +180,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100dv
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <span class="close-lb">✕</span>
   <img id="lightboxImg" onclick="event.stopPropagation()">
+</div>
+
+<!-- Calendar Modal -->
+<div class="overlay hidden" id="calOverlay">
+  <div class="dialog cal-dialog">
+    <h3>📅 签到カレンダー</h3>
+    <div class="cal-header">
+      <button onclick="calMonth(-1)">◀</button>
+      <span id="calTitle"></span>
+      <button onclick="calMonth(1)">▶</button>
+    </div>
+    <div class="cal-grid">
+      <div class="cal-dow">日</div><div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div><div class="cal-dow">木</div><div class="cal-dow">金</div><div class="cal-dow">土</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div style="margin-top:12px;font-size:.82em;color:var(--text2)">
+      連続: <strong id="calStreak" style="color:var(--green)">0日</strong> · 累計: <strong id="calTotal" style="color:#ffd700">0日</strong>
+    </div>
+    <div id="calTimer" style="font-size:.75em;color:var(--text3);margin-top:6px"></div>
+    <button class="cal-checkin-btn" id="calCheckBtn" onclick="doCheckin()" disabled>📝 签到 (あと10分)</button>
+    <button style="background:#444;margin-top:6px" onclick="document.getElementById('calOverlay').classList.add('hidden')">閉じる</button>
+  </div>
 </div>
 
 <!-- Dialogs -->
@@ -366,6 +402,117 @@ function initEmoji(){document.getElementById('emojiGrid').innerHTML=[...EMOJIS].
 function toggleEmoji(){const p=document.getElementById('emojiPicker');p.classList.toggle('show')}
 function filterEmoji(){const q=document.getElementById('emojiSearch').value;document.getElementById('emojiGrid').innerHTML=[...EMOJIS].filter(e=>!q||e.includes(q)).map(e=>`<span class="emoji-item" onclick="insertEmoji('${e}')">${e}</span>`).join('')}
 function insertEmoji(e){const inp=document.getElementById('msgInput');inp.value+=e;inp.focus()}
+
+// ═══ Calendar / Check-in ═══
+let calYear, calMonth, checkinData = {}, checkinTotal = 0, checkinElapsed = 0, checkinNeeded = 600, checkinDone = false;
+
+function toggleCalendar() {
+  if (!currentRoom) return;
+  const now = new Date(); calYear = now.getFullYear(); calMonth = now.getMonth();
+  loadCheckinData();
+  document.getElementById('calOverlay').classList.remove('hidden');
+}
+
+async function loadCheckinData() {
+  if (!currentRoom) return;
+  try {
+    const r = await fetch(`/api/checkin/${currentRoom}/status?user=${encodeURIComponent(userName)}`);
+    const s = await r.json();
+    checkinElapsed = s.elapsed; checkinNeeded = s.need; checkinDone = s.alreadyChecked;
+    checkinTotal = s.total;
+    document.getElementById('calTotal').textContent = checkinTotal + '日';
+    document.getElementById('calStreak').textContent = calcStreak() + '日';
+    updateCheckinBtn();
+    // Load all checkins for calendar display
+    const r2 = await fetch(`/api/checkin/${currentRoom}/all`);
+    checkinData = await r2.json();
+    renderCalendar();
+  } catch(e) {}
+}
+
+function calcStreak() {
+  const dates = (checkinData[userName] || []).sort().reverse();
+  if (!dates.length) return 0;
+  let streak = 1;
+  const oneDay = 86400000;
+  for (let i = 0; i < dates.length - 1; i++) {
+    const diff = new Date(dates[i]).getTime() - new Date(dates[i+1]).getTime();
+    if (diff <= oneDay * 1.5) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function renderCalendar() {
+  document.getElementById('calTitle').textContent = calYear + '年 ' + (calMonth + 1) + '月';
+  const grid = document.getElementById('calGrid');
+  const userDates = checkinData[userName] || [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  let html = '';
+  for (let i = 0; i < firstDay; i++) html += '<div class="cal-day dim"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const checked = userDates.includes(ds);
+    const isToday = ds === todayStr;
+    html += `<div class="cal-day${checked?' checked':''}${isToday?' today':''}">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function calMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
+function updateCheckinBtn() {
+  const btn = document.getElementById('calCheckBtn');
+  const left = Math.max(0, checkinNeeded - checkinElapsed);
+  if (checkinDone) { btn.textContent = '✅ 本日签到済み'; btn.disabled = true; }
+  else if (left <= 0) { btn.textContent = '📝 签到する！'; btn.disabled = false; }
+  else { btn.textContent = `⏳ あと${Math.ceil(left/60)}分で签到可能`; btn.disabled = true; }
+  document.getElementById('calTimer').textContent = checkinElapsed >= checkinNeeded ? '✅ 10分経過しました' : `⏱ 経過: ${Math.floor(checkinElapsed/60)}分${checkinElapsed%60}秒 / 10分`;
+}
+
+// Update timer every 10s
+setInterval(async () => {
+  if (document.getElementById('calOverlay').classList.contains('hidden')) return;
+  if (!currentRoom) return;
+  try {
+    const r = await fetch(`/api/checkin/${currentRoom}/status?user=${encodeURIComponent(userName)}`);
+    const s = await r.json();
+    checkinElapsed = s.elapsed; checkinDone = s.alreadyChecked; checkinTotal = s.total;
+    updateCheckinBtn();
+  } catch(e) {}
+}, 10000);
+
+async function doCheckin() {
+  try {
+    const r = await fetch(`/api/checkin/${currentRoom}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: userName }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      checkinDone = true; checkinTotal = data.total;
+      checkinData[userName] = data.all;
+      renderCalendar();
+      document.getElementById('calTotal').textContent = checkinTotal + '日';
+      document.getElementById('calStreak').textContent = calcStreak() + '日';
+      updateCheckinBtn();
+      toast('✅ 签到成功！' + checkinTotal + '日目');
+    } else {
+      const e = await r.json();
+      toast('⚠️ ' + (e.error === 'already' ? '本日既に签到済み' : '10分経過が必要です'));
+    }
+  } catch(e) { toast('⚠️ エラー'); }
+}
 
 // Auto-reconnect
 setInterval(()=>{if(currentRoom&&(!ws||ws.readyState===3))connect(currentRoom)},5000);
