@@ -79,11 +79,20 @@ wss.on('connection', (ws, req) => {
     try {
       const msg = JSON.parse(raw);
       if (msg.type === 'chat' && msg.text?.trim()) {
-        const cm = { type:'chat', id: crypto.randomBytes(6).toString('hex'), user: ws._userName, text: msg.text.trim().slice(0,2000), time: Date.now() };
+        const cm = { type:'chat', id: crypto.randomBytes(6).toString('hex'), user: ws._userName, text: msg.text.trim().slice(0,2000), time: Date.now(), readBy:[ws._userName], replyTo: msg.replyTo || null };
         room.messages.push(cm);
         if (room.messages.length > 1000) room.messages = room.messages.slice(-1000);
         broadcast(room, cm);
         saveNow();
+      }
+      if (msg.type === 'read') {
+        // Mark all messages as read by this user
+        let changed = false;
+        for (const m of room.messages) {
+          if (!m.readBy) m.readBy = [];
+          if (!m.readBy.includes(ws._userName)) { m.readBy.push(ws._userName); changed = true; }
+        }
+        if (changed) { broadcast(room, { type:'readUpdate', user: ws._userName, online: room.clients.size }); saveNow(); }
       }
       if (msg.type === 'delete') {
         const t = room.messages.find(m => m.id === msg.msgId);
