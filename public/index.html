@@ -34,13 +34,15 @@ body {
   background: var(--line-green);
   color: #fff;
   padding: 12px 16px;
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,.15);
-  z-index: 10;
-  flex-shrink: 0;
+  z-index: 10; flex-shrink: 0;
 }
-.header .back { font-size: 1.2em; cursor: pointer; text-decoration: none; color: #fff; }
 .header .room-title { font-size: 1em; font-weight: 700; flex:1; }
+.header .admin-badge {
+  background: #f0c040; color: #333; padding: 2px 8px;
+  border-radius: 10px; font-size: 0.65em; font-weight: 700;
+}
 .header .online-badge {
   background: rgba(255,255,255,.25); padding: 3px 10px;
   border-radius: 12px; font-size: 0.75em;
@@ -51,25 +53,33 @@ body {
   flex: 1; overflow-y: auto; padding: 10px 12px;
   background: var(--chat-bg);
   -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 4px;
 }
 .chat-area::-webkit-scrollbar { width: 4px; }
 .chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 4px; }
 
 /* ── Messages ── */
-.msg-wrap { display: flex; flex-direction: column; max-width: 80%; animation: msgIn .2s ease; }
+.msg-wrap {
+  display: flex; flex-direction: column; max-width: 82%;
+  animation: msgIn .2s ease; position: relative;
+}
 @keyframes msgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 .msg-wrap.self { align-self: flex-end; align-items: flex-end; }
 .msg-wrap.other { align-self: flex-start; align-items: flex-start; }
 
 .msg-user {
-  font-size: 0.68em; color: rgba(0,0,0,.5); padding: 0 8px; margin-bottom: 1px;
+  font-size: 0.65em; color: rgba(0,0,0,.5); padding: 0 8px; margin-bottom: 1px;
+  display: flex; align-items: center; gap: 4px;
 }
+.msg-user .admin-icon { font-size: 0.8em; }
+
 .msg-bubble {
   padding: 8px 14px; border-radius: 18px;
   font-size: 0.92em; line-height: 1.45; word-break: break-word;
-  position: relative;
+  position: relative; cursor: pointer; user-select: none;
+  transition: transform .12s;
 }
+.msg-bubble:active { transform: scale(.98); }
 .msg-wrap.self .msg-bubble {
   background: var(--bubble-self);
   border-bottom-right-radius: 4px;
@@ -82,19 +92,38 @@ body {
   font-size: 0.62em; color: rgba(0,0,0,.4); padding: 2px 8px 0;
 }
 
+/* Deleted message */
+.msg-deleted .msg-bubble {
+  background: #eee !important; color: #999; font-style: italic;
+  font-size: 0.8em; padding: 6px 14px;
+}
+
+/* ── Message action menu ── */
+.msg-actions {
+  position: absolute; background: #fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  z-index: 50; padding: 4px; display: none; white-space: nowrap;
+}
+.msg-actions.show { display: flex; flex-direction: column; }
+.msg-actions button {
+  padding: 8px 18px; border: none; background: none;
+  font-size: 0.85em; cursor: pointer; text-align: left; border-radius: 8px;
+  font-family: var(--font); white-space: nowrap;
+}
+.msg-actions button:hover { background: #f0f0f0; }
+.msg-actions button.danger { color: #e74c3c; }
+
 /* System message */
 .msg-system {
   align-self: center; font-size: 0.7em; color: rgba(255,255,255,.8);
   background: rgba(0,0,0,.15); padding: 4px 14px; border-radius: 10px;
-  margin: 4px 0;
+  margin: 4px 0; animation: msgIn .2s ease;
 }
 
 /* ── Input bar ── */
 .input-bar {
   background: #f5f5f5; padding: 8px 10px;
   display: flex; gap: 8px; align-items: center;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
+  border-top: 1px solid var(--border); flex-shrink: 0;
   padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
 .input-bar input {
@@ -131,33 +160,28 @@ body {
   outline: none; font-family: var(--font); text-align: center;
 }
 .setup-card input:focus { border-color: var(--line-green); }
-.setup-card .room-id {
-  font-size: 0.78em; color: #aaa; margin-bottom: 14px;
-}
+.setup-card .room-id { font-size: 0.78em; color: #aaa; margin-bottom: 14px; }
 .setup-card button {
   width: 100%; padding: 14px; border-radius: 14px; border: none;
   background: var(--line-green); color: #fff; font-size: 1em; font-weight: 700;
   cursor: pointer;
 }
-.setup-card button:active { background: var(--line-dark); }
 
 /* ── Share bar ── */
 .share-bar {
-  background: #fff; padding: 10px 12px;
+  background: #fff; padding: 8px 12px;
   display: flex; gap: 8px; align-items: center;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0; font-size: 0.78em;
+  flex-shrink: 0; font-size: 0.76em;
 }
 .share-bar .share-link {
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: #555; background: #f0f0f0; padding: 6px 10px; border-radius: 6px;
+  color: #555; background: #f0f0f0; padding: 5px 10px; border-radius: 6px;
 }
 .share-bar button {
-  padding: 6px 14px; border-radius: 8px; border: none;
-  background: var(--line-green); color: #fff; font-size: 0.82em;
-  cursor: pointer; flex-shrink: 0;
+  padding: 5px 12px; border-radius: 8px; border: none;
+  background: var(--line-green); color: #fff; font-size: 0.8em; cursor: pointer; flex-shrink: 0;
 }
-.share-bar button:active { background: var(--line-dark); }
 
 /* ── Toast ── */
 .toast {
@@ -167,6 +191,26 @@ body {
   opacity: 0; pointer-events: none; transition: opacity .3s;
 }
 .toast.show { opacity: 1; }
+
+/* ── User list ── */
+.user-panel {
+  position: fixed; right: 0; top: 0; bottom: 0;
+  width: 260px; background: #fff; z-index: 90;
+  box-shadow: -4px 0 20px rgba(0,0,0,.15);
+  transform: translateX(100%); transition: transform .3s;
+  padding: 20px; overflow-y: auto;
+}
+.user-panel.open { transform: translateX(0); }
+.user-panel h3 { font-size: 0.9em; margin-bottom: 12px; }
+.user-panel .u-item {
+  padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85em;
+  display: flex; align-items: center; gap: 6px;
+}
+.user-panel .set-admin-btn {
+  font-size: 0.7em; padding: 3px 8px; border-radius: 6px;
+  border: 1px solid #ccc; background: #fff; cursor: pointer;
+  margin-left: auto;
+}
 </style>
 </head>
 <body>
@@ -182,11 +226,18 @@ body {
   </div>
 </div>
 
+<!-- User panel -->
+<div class="user-panel" id="userPanel">
+  <h3>👥 オンラインメンバー</h3>
+  <div id="userList"></div>
+  <button style="margin-top:12px;width:100%;padding:8px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="togglePanel()">閉じる</button>
+</div>
+
 <!-- Header -->
 <div class="header">
-  <span class="back">←</span>
   <span class="room-title" id="roomTitle">チャット</span>
-  <span class="online-badge" id="onlineBadge">👤 0</span>
+  <span class="admin-badge" id="adminBadge" style="display:none">👑 管理者</span>
+  <span class="online-badge" id="onlineBadge" onclick="togglePanel()" style="cursor:pointer">👤 0</span>
 </div>
 
 <!-- Share -->
@@ -206,24 +257,29 @@ body {
   <button onclick="sendMessage()">➤</button>
 </div>
 
+<!-- Message action menu -->
+<div class="msg-actions" id="msgActions"></div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-// ── Parse room/user from URL ──
+// ── State ──
 const urlParams = new URLSearchParams(location.search);
 const ROOM = urlParams.get('room') || location.pathname.replace(/^\/+/,'') || 'chat';
 const USER_KEY = 'linechat_user_' + ROOM;
 let userName = localStorage.getItem(USER_KEY) || '';
+let isAdmin = false;
+let roomAdmin = '';
 const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const SHARE_URL = location.origin + '?room=' + ROOM;
+let activeMsgId = null;
 
-// Display room info
 document.getElementById('roomDisplay').textContent = ROOM;
-document.getElementById('roomTitle').textContent = ROOM;
-document.getElementById('shareLink').textContent = location.origin + '?room=' + ROOM;
+document.getElementById('roomTitle').textContent = '💬 ' + ROOM;
+document.getElementById('shareLink').textContent = SHARE_URL;
 document.getElementById('nameInput').value = userName;
 
-// Show/hide overlay
 if (userName) {
   document.getElementById('overlay').classList.add('hidden');
   connectWS();
@@ -239,6 +295,10 @@ window.joinChat = function() {
   connectWS();
 };
 
+document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') joinChat();
+});
+
 // ── WebSocket ──
 let ws;
 function connectWS() {
@@ -251,33 +311,34 @@ function connectWS() {
     const area = document.getElementById('chatArea');
 
     if (msg.type === 'history') {
+      isAdmin = msg.isAdmin;
+      roomAdmin = msg.admin;
+      updateAdminUI();
       document.getElementById('onlineBadge').textContent = '👤 ' + msg.online;
-      area.innerHTML = '<div class="msg-system">ようこそ！メッセージを送ってみましょう ✨</div>';
+      area.innerHTML = '<div class="msg-system">ようこそ！✨</div>';
       msg.messages.forEach(m => appendMessage(m, false));
       area.scrollTop = area.scrollHeight;
     }
 
     if (msg.type === 'chat') appendMessage(msg, true);
+    if (msg.type === 'msgDeleted') {
+      const el = document.getElementById('msg-' + msg.msgId);
+      if (el) {
+        el.classList.add('msg-deleted');
+        el.querySelector('.msg-bubble').textContent = 'このメッセージは削除されました';
+      }
+    }
     if (msg.type === 'system') {
+      if (msg.admin !== undefined) { roomAdmin = msg.admin; updateAdminUI(); }
       document.getElementById('onlineBadge').textContent = '👤 ' + (msg.online || '?');
-      const el = document.createElement('div');
-      el.className = 'msg-system';
-      el.textContent = msg.text;
-      document.getElementById('chatArea').appendChild(el);
-      scrollDown();
+      addSystem(msg.text);
     }
   };
 
-  ws.onclose = () => {
-    const el = document.createElement('div');
-    el.className = 'msg-system';
-    el.textContent = '⚠️ 接続が切れました。リロードしてください。';
-    document.getElementById('chatArea').appendChild(el);
-    scrollDown();
-  };
+  ws.onclose = () => addSystem('⚠️ 接続が切れました。ページをリロードしてください。');
 }
 
-// ── Send message ──
+// ── Send ──
 window.sendMessage = function() {
   const input = document.getElementById('msgInput');
   const text = input.value.trim();
@@ -287,25 +348,48 @@ window.sendMessage = function() {
   input.focus();
 };
 
-// Enter key
 document.getElementById('msgInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// ── Append message to DOM ──
+// ── Delete message ──
+window.deleteMsg = function(msgId) {
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'delete', msgId }));
+  hideActions();
+};
+
+// ── Set admin ──
+window.setAdmin = function(newAdmin) {
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'setAdmin', newAdmin }));
+};
+
+// ── Append message ──
 function appendMessage(msg, scroll) {
   const area = document.getElementById('chatArea');
   const wrap = document.createElement('div');
   const isSelf = msg.user === userName;
   wrap.className = 'msg-wrap ' + (isSelf ? 'self' : 'other');
+  if (msg.deleted) wrap.classList.add('msg-deleted');
+  wrap.id = 'msg-' + msg.id;
 
   const uname = document.createElement('div');
   uname.className = 'msg-user';
-  uname.textContent = isSelf ? '' : msg.user;
+  uname.innerHTML = (isSelf ? '' : msg.user) + (msg.user === roomAdmin ? ' <span class="admin-icon">👑</span>' : '');
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
-  bubble.textContent = msg.text;
+  bubble.textContent = msg.deleted ? 'このメッセージは削除されました' : msg.text;
+
+  // Long press / right click to show actions
+  let longPressTimer;
+  bubble.addEventListener('touchstart', (e) => {
+    longPressTimer = setTimeout(() => showActions(msg, e), 500);
+  });
+  bubble.addEventListener('touchend', () => clearTimeout(longPressTimer));
+  bubble.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+  bubble.addEventListener('contextmenu', (e) => { e.preventDefault(); showActions(msg, e); });
 
   const time = document.createElement('div');
   time.className = 'msg-time';
@@ -316,23 +400,72 @@ function appendMessage(msg, scroll) {
   wrap.appendChild(bubble);
   wrap.appendChild(time);
   area.appendChild(wrap);
-
-  if (scroll) scrollDown();
+  if (scroll) { area.scrollTop = area.scrollHeight; }
 }
 
-function scrollDown() {
-  const area = document.getElementById('chatArea');
-  requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
+function addSystem(text) {
+  const el = document.createElement('div');
+  el.className = 'msg-system'; el.textContent = text;
+  document.getElementById('chatArea').appendChild(el);
+  document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight;
 }
 
-// ── Copy link ──
+// ── Message actions ──
+function showActions(msg, event) {
+  // Don't show actions for deleted messages
+  if (msg.deleted) return;
+  const menu = document.getElementById('msgActions');
+  const canDelete = (msg.user === userName) || isAdmin;
+
+  let html = '';
+  if (canDelete) {
+    html += '<button class="danger" onclick="deleteMsg(\'' + msg.id + '\')">🗑 削除</button>';
+  }
+  if (isAdmin && msg.user !== userName) {
+    html += '<button onclick="setAdmin(\'' + msg.user + '\')">👑 管理者にする</button>';
+  }
+  if (!html) return;
+
+  menu.innerHTML = html;
+  menu.classList.add('show');
+
+  // Position near the touch point
+  const x = (event.touches ? event.touches[0].clientX : event.clientX) || 100;
+  const y = (event.touches ? event.touches[0].clientY : event.clientY) || 200;
+  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  menu.style.top = (y - 80) + 'px';
+  activeMsgId = msg.id;
+
+  setTimeout(() => {
+    document.addEventListener('click', hideActions, { once: true });
+  }, 100);
+}
+
+function hideActions() {
+  document.getElementById('msgActions').classList.remove('show');
+  activeMsgId = null;
+}
+
+// ── Admin UI ──
+function updateAdminUI() {
+  const badge = document.getElementById('adminBadge');
+  if (isAdmin) { badge.style.display = 'inline'; badge.textContent = '👑 管理者'; }
+  else if (userName === roomAdmin) { badge.style.display = 'inline'; badge.textContent = '👑 管理者'; isAdmin = true; }
+  else { badge.style.display = 'none'; }
+}
+
+// ── User panel ──
+function togglePanel() {
+  document.getElementById('userPanel').classList.toggle('open');
+}
+
+// ── Copy ──
 function updateShareLink() {
-  const url = location.origin + '?room=' + ROOM;
-  document.getElementById('shareLink').textContent = url;
+  document.getElementById('shareLink').textContent = SHARE_URL;
 }
 
 window.copyLink = function() {
-  const url = location.origin + '?room=' + ROOM;
+  const url = SHARE_URL;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(() => toast('✅ リンクをコピーしました！'));
   } else {
@@ -349,11 +482,6 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000);
 }
-
-// Name input Enter
-document.getElementById('nameInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') joinChat();
-});
 </script>
 </body>
 </html>
