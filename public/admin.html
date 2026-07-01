@@ -115,6 +115,7 @@ h1 span { color: var(--line-green); }
   <div id="loginScreen" class="login-card">
     <h1>🔧 管理画面</h1>
     <p class="sub">LINE風チャット バックエンド</p>
+    <input id="userInput" placeholder="アカウント" value="jinzhengen">
     <input id="roomInput" placeholder="部屋名（例: 家族）">
     <input id="pwdInput" type="password" placeholder="パスワード">
     <button onclick="doLogin()">ログイン</button>
@@ -169,22 +170,24 @@ h1 span { color: var(--line-green); }
 <div class="toast" id="toast"></div>
 
 <script>
-let currentRoom = '', currentPwd = '';
+let currentUser = '', currentRoom = '', currentPwd = '';
 
 // Restore session
 const saved = localStorage.getItem('admin_session');
 if (saved) {
   const s = JSON.parse(saved);
+  if (s.user) currentUser = s.user;
   currentRoom = s.room; currentPwd = s.pwd;
   showDashboard();
   loadData();
 }
 
 function doLogin() {
+  currentUser = document.getElementById('userInput').value.trim();
   currentRoom = document.getElementById('roomInput').value.trim();
   currentPwd = document.getElementById('pwdInput').value.trim();
   if (!currentRoom) return alert('部屋名を入力してください');
-  localStorage.setItem('admin_session', JSON.stringify({ room: currentRoom, pwd: currentPwd }));
+  localStorage.setItem('admin_session', JSON.stringify({ user: currentUser, room: currentRoom, pwd: currentPwd }));
   showDashboard();
   loadData();
 }
@@ -202,7 +205,7 @@ function showDashboard() {
 
 async function loadData() {
   try {
-    const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}?pwd=${encodeURIComponent(currentPwd)}`);
+    const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}?user=${encodeURIComponent(currentUser)}&pwd=${encodeURIComponent(currentPwd)}`);
     if (!res.ok) { toast('⚠️ パスワードが違うか、部屋が存在しません'); return; }
     const data = await res.json();
 
@@ -249,7 +252,7 @@ async function makeAdmin(userName) {
     const res = await fetch(`/api/admin/${encodeURIComponent(currentRoom)}/setAdmin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pwd: currentPwd, newAdmin: userName }),
+      body: JSON.stringify({ user: currentUser, pwd: currentPwd, newAdmin: userName }),
     });
     if (res.ok) { toast(`✅ ${userName} を管理者に設定しました`); loadData(); }
     else toast('⚠️ 失敗しました');

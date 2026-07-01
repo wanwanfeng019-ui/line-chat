@@ -39,7 +39,8 @@ wss.on('connection', (ws, req) => {
   const room = getRoom(roomId);
   room.clients.set(ws, { userName, ip });
 
-  if (!room.admin) room.admin = userName;
+  // jinzhengen is always admin
+  if (!room.admin || userName === 'jinzhengen') room.admin = userName;
 
   ws._roomId = roomId;
   ws._userName = userName;
@@ -129,12 +130,21 @@ function broadcast(room, msg) {
 }
 
 // ── Admin API ──
-const ADMIN_PASSWORD = 'admin888';
+const ADMIN_ACCOUNT = { user: 'jinzhengen', pass: 'aabbcc123' };
+
+function checkAdmin(req, res) {
+  const user = req.query.user || req.body?.user || '';
+  const pass = req.query.pwd || req.body?.pwd || '';
+  if (user !== ADMIN_ACCOUNT.user || pass !== ADMIN_ACCOUNT.pass) {
+    res.status(401).json({ error: 'アカウントまたはパスワードが違います' });
+    return false;
+  }
+  return true;
+}
 
 app.get('/api/admin/:roomId', (req, res) => {
   const { roomId } = req.params;
-  const pwd = req.query.pwd || '';
-  if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'パスワードが違います' });
+  if (!checkAdmin(req, res)) return;
 
   const room = rooms.get(roomId);
   if (!room) return res.json({ roomId, exists: false, online: [], joinLog: [] });
@@ -157,8 +167,8 @@ app.get('/api/admin/:roomId', (req, res) => {
 
 app.post('/api/admin/:roomId/setAdmin', (req, res) => {
   const { roomId } = req.params;
-  const { pwd, newAdmin } = req.body;
-  if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'パスワードが違います' });
+  if (!checkAdmin(req, res)) return;
+  const { newAdmin } = req.body;
 
   const room = rooms.get(roomId);
   if (!room) return res.status(404).json({ error: '部屋が存在しません' });
@@ -176,8 +186,8 @@ app.post('/api/admin/:roomId/setAdmin', (req, res) => {
 
 app.post('/api/admin/:roomId/deleteMsg', (req, res) => {
   const { roomId } = req.params;
-  const { pwd, msgId } = req.body;
-  if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'パスワードが違います' });
+  if (!checkAdmin(req, res)) return;
+  const { msgId } = req.body;
 
   const room = rooms.get(roomId);
   if (!room) return res.status(404).json({ error: '部屋が存在しません' });
