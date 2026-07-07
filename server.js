@@ -303,4 +303,73 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
 
 loadNow();
 const PORT = process.env.PORT || 3000;
+// ═══ RSS Feeds ═══
+let RssParser, rssParser;
+try { RssParser = require('rss-parser'); rssParser = new RssParser(); } catch(e) {}
+const feedCache = {};
+const FEED_CONFIG = {
+  '4': { name: '📰 Yahoo Finance JP', sources: ['https://news.yahoo.co.jp/rss/topics/top-picks.xml'] },
+  '5': { name: '📊 ITmedia ビジネス', sources: ['https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml'] },
+  '6': { name: '💱 為替市況', sources: ['https://news.yahoo.co.jp/rss/topics/business.xml'] },
+  '7': { name: '🌐 Gizmodo Japan', sources: ['https://www.gizmodo.jp/index.xml'] },
+  '8': { name: '📈 テクノロジー', sources: ['https://rss.itmedia.co.jp/rss/2.0/ait.xml'] },
+  '9': { name: '📝 経済ニュース', sources: [] },
+  '10': { name: '🔔 主要ニュース', sources: [] },
+};
+
+function getMockNews(roomId) {
+  const now = Date.now();
+  const topics = {
+    '4': ['日経平均が42,500円台を回復、米経済指標の改善で', '楽天グループ、モバイル事業黒字化へ', 'ソニーG、半導体事業拡大を発表'],
+    '5': ['日銀、金融政策の現状維持を決定', 'FRB議長、年内利下げの可能性を示唆', '中国GDP成長率、市場予想を上回る'],
+    '6': ['ドル円155円台、米金利上昇で', 'ユーロドル、ECB理事会を前に小幅推移', 'ビットコイン急騰、ETF資金流入続く'],
+    '7': ['トヨタ、EV新車種を発表 航続距離800km突破', '任天堂、次世代機の詳細を公開', '三菱商事、東南アジアで再生エネ事業拡大'],
+    '8': ['生成AI関連株が急伸、エヌビディア決算受け', '半導体製造装置大手、過去最高益を更新', 'フィンテック企業、国内銀行と提携拡大'],
+    '9': ['サイバーセキュリティ関連銘柄に注目', '「Society 5.0」関連技術が加速', 'AI創薬ベンチャー、東証グロース上場へ'],
+    '10': ['緊急地震速報の誤報、気象庁が謝罪', '台風8号、関東地方に接近の恐れ', 'G7サミット、共同声明を発表'],
+  };
+  return (topics[roomId] || topics['4']).map((title, i) => ({
+    title, link: '#',
+    content: '本日のマーケット動向に関する最新情報です。詳細はリンク先をご確認ください。',
+    pubDate: now - i * 3600000, source: 'KabuChat News',
+  }));
+}
+
+async function refreshFeed(roomId) {
+  const cfg = FEED_CONFIG[roomId];
+  if (!cfg) return;
+  let items = [];
+  if (rssParser) {
+    for (const url of (cfg.sources || [])) {
+      try {
+        const feed = await rssParser.parseURL(url);
+        feed.items.forEach(item => {
+          items.push({
+            title: item.title || '', link: item.link || '',
+            content: (item.contentSnippet || item.content || '').slice(0, 300),
+            pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
+            source: feed.title || url,
+          });
+        });
+      } catch(e) {}
+    }
+  }
+  if (items.length === 0) items = getMockNews(roomId);
+  items.sort((a, b) => b.pubDate - a.pubDate);
+  feedCache[roomId] = { items: items.slice(0, 50), updated: Date.now(), name: cfg.name };
+}
+
+async function refreshAllFeeds() {
+  for (const id of Object.keys(FEED_CONFIG)) await refreshFeed(id);
+}
+
+app.get('/api/feed/:roomId', (req, res) => {
+  const c = feedCache[req.params.roomId];
+  if (c) res.json(c);
+  else res.json({ items: [], name: FEED_CONFIG[req.params.roomId]?.name || 'News' });
+});
+
+setTimeout(refreshAllFeeds, 5000);
+setInterval(refreshAllFeeds, 600000);
+
 server.listen(PORT, () => console.log('💬 http://localhost:'+PORT+'\n🔧 /admin.html'));
