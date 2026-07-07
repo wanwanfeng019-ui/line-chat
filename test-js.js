@@ -1,0 +1,1 @@
+const fs=require("fs");const h=fs.readFileSync("public/index.html","utf8");const m=h.match(/<script>([sS]*?)</script>/);try{new Function(m[1]);console.log("OK")}catch(e){console.log(e.message.slice(0,200))}

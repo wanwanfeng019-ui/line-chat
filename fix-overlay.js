@@ -1,0 +1,1 @@
+const fs=require("fs");let h=fs.readFileSync("/opt/line-chat/public/index.html","utf8");h=h.replace(/class="overlay hidden" id="nameOverlay"/g,"class="overlay" id="nameOverlay"");fs.writeFileSync("/opt/line-chat/public/index.html",h);console.log("fixed")
