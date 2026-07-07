@@ -205,7 +205,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100dv
 </div>
 
 <!-- Dialogs -->
-<div class="overlay hidden" id="nameOverlay"><div class="dialog"><h3>👤 名前</h3><input id="nameInput" placeholder="名前を入力" maxlength="20"><button onclick="setName()">OK</button></div></div>
+<div class="overlay hidden" id="nameOverlay"><div class="dialog"><h3>💬 KabuChat</h3><p style="font-size:.75em;color:var(--text2);margin-bottom:16px">How to enter</p><button onclick="lineLogin()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#06C755;color:#fff;font-size:.95em;font-weight:700;cursor:pointer;font-family:var(--font);margin-bottom:6px">🟢 LINE Login</button><div style="margin:16px 0;display:flex;align-items:center;gap:10px;color:var(--text3);font-size:.75em"><span style="flex:1;height:1px;background:var(--border)"></span>or<span style="flex:1;height:1px;background:var(--border)"></span></div><input id="guestName" placeholder="Guest name" maxlength="20"><button onclick="setGuest()" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bubble-you);color:var(--text2);font-size:.85em;cursor:pointer;font-family:var(--font);margin-top:8px">Enter as Guest</button></div></div>
 <div class="overlay hidden" id="pwdOverlay"><div class="dialog"><h3>🔒 パスワード</h3><p id="pwdDesc"></p><input type="password" id="pwdInput" placeholder="パスワード"><div class="err" id="pwdErr"></div><button onclick="checkPwd()">入室</button></div></div>
 <div class="ctx-menu" id="ctxMenu"></div>
 <div class="toast" id="toast"></div>
@@ -222,16 +222,16 @@ let pwdCache={},replyTo=null,onlineUsers=[],unreadMap={};
 function avatarColor(n){let h=0;for(let i=0;i<n.length;i++)h=((h<<5)-h)+n.charCodeAt(i);return['#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e91e63','#00bcd4','#ff5722'][Math.abs(h)%10]}
 
 // ═══ Init ═══
-if(!userName){document.getElementById('nameOverlay').classList.remove('hidden');document.getElementById('nameInput').focus()}else document.getElementById('nameOverlay').classList.add('hidden');
+const up=new URLSearchParams(location.search);if(up.get('token')){userName=up.get('name')||'';localStorage.setItem('line_name',userName);history.replaceState(null,'','/')}if(!userName){document.getElementById('nameOverlay').classList.remove('hidden')}else{document.getElementById('nameOverlay').classList.add('hidden')}
 initSidebar();
-document.getElementById('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter')setName()});
+document.getElementById('guestName').addEventListener('keydown',e=>{if(e.key==='Enter')setGuest()});
 document.getElementById('msgInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 document.getElementById('msgInput').addEventListener('input',onInput);
 document.getElementById('messages').addEventListener('scroll',onScroll);
 document.getElementById('pwdInput').addEventListener('keydown',e=>{if(e.key==='Enter')checkPwd()});
 initEmoji();
 
-function setName(){const n=document.getElementById('nameInput').value.trim();if(!n)return;userName=n;localStorage.setItem(USER_KEY,n);document.getElementById('nameOverlay').classList.add('hidden');initSidebar()}
+function setGuest(){const n=document.getElementById('guestName').value.trim();if(!n)return;userName=n;localStorage.setItem(USER_KEY,n);document.getElementById('nameOverlay').classList.add('hidden');initSidebar()}function lineLogin(){location.href='/api/line-login'}
 
 // ═══ Sidebar ═══
 function initSidebar(){
@@ -404,11 +404,11 @@ function filterEmoji(){const q=document.getElementById('emojiSearch').value;docu
 function insertEmoji(e){const inp=document.getElementById('msgInput');inp.value+=e;inp.focus()}
 
 // ═══ Calendar / Check-in ═══
-let calYear, calMonth, checkinData = {}, checkinTotal = 0, checkinElapsed = 0, checkinNeeded = 600, checkinDone = false;
+let calYear, calMonthIdx, checkinData = {}, checkinTotal = 0, checkinElapsed = 0, checkinNeeded = 600, checkinDone = false;
 
 function toggleCalendar() {
   if (!currentRoom) return;
-  const now = new Date(); calYear = now.getFullYear(); calMonth = now.getMonth();
+  const now = new Date(); calYear = now.getFullYear(); calMonthIdx = now.getMonth();
   loadCheckinData();
   document.getElementById('calOverlay').classList.remove('hidden');
 }
@@ -449,8 +449,8 @@ function renderCalendar() {
   const userDates = checkinData[userName] || [];
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstDay = new Date(calYear, calMonthIdx, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonthIdx + 1, 0).getDate();
 
   let html = '';
   for (let i = 0; i < firstDay; i++) html += '<div class="cal-day dim"></div>';
@@ -464,9 +464,9 @@ function renderCalendar() {
 }
 
 function calMonth(delta) {
-  calMonth += delta;
-  if (calMonth < 0) { calMonth = 11; calYear--; }
-  if (calMonth > 11) { calMonth = 0; calYear++; }
+  calMonthIdx += delta;
+  if (calMonthIdx < 0) { calMonthIdx = 11; calYear--; }
+  if (calMonthIdx > 11) { calMonthIdx = 0; calYear++; }
   renderCalendar();
 }
 

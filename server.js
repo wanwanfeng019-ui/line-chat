@@ -8,8 +8,39 @@ const { WebSocketServer } = require('ws');
 const DATA_FILE = path.join(__dirname, 'data.json');
 const app = express();
 app.use(express.static('public'));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 const server = http.createServer(app);
+
+// ═══ LINE OAuth ═══
+const LINE_ID = '2010620651';
+const LINE_SECRET = 'ebdac45321392b1876f06b3c18b279ce';
+const LINE_CB = 'https://kabu-chat.com/api/line-callback';
+
+app.get('/api/line-login', (req, res) => {
+  const state = crypto.randomBytes(8).toString('hex');
+  res.redirect('https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=' + LINE_ID + '&redirect_uri=' + encodeURIComponent(LINE_CB) + '&state=' + state + '&scope=profile%20openid');
+});
+
+app.get('/api/line-callback', (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) return res.redirect('/?login=error');
+  const body = 'grant_type=authorization_code&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(LINE_CB) + '&client_id=' + LINE_ID + '&client_secret=' + LINE_SECRET;
+  const hr = require('https').request({ hostname: 'api.line.me', path: '/oauth2/v2.1/token', method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, (r2) => { let d = ''; r2.on('data', c => d += c); r2.on('end', () => {
+    try {
+      const td = JSON.parse(d);
+      if (!td.access_token) return res.redirect('/?login=error');
+      require('https').get({ hostname: 'api.line.me', path: '/v2/profile', headers: { 'Authorization': 'Bearer ' + td.access_token } }, (r3) => { let p = ''; r3.on('data', c => p += c); r3.on('end', () => {
+        try {
+          const prof = JSON.parse(p);
+          const token = crypto.randomBytes(16).toString('hex');
+          res.redirect('/?token=' + token + '&name=' + encodeURIComponent(prof.displayName || 'LINE User'));
+        } catch(e) { res.redirect('/?login=error'); }
+      }); }).on('error', () => res.redirect('/?login=error'));
+    } catch(e) { res.redirect('/?login=error'); }
+  }); });
+  hr.on('error', () => res.redirect('/?login=error'));
+  hr.write(body); hr.end();
+});
 
 // ── Store ──
 const rooms = new Map();
